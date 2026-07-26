@@ -336,5 +336,5 @@ echo "=== .xdd/ 结构 ==="
 find .xdd -type d | sort
 echo
 echo "=== 下一步 ==="
-echo "对 AI 说: \"用 xdd-walker 给我做一个 <你的功能>\""
-echo "walker 第一步会装 xdd-brainstorm 写 design/intent.md + design.md"
+echo "对 AI 说: \"用 xdd-flow 给我做一个 <你的功能>\""
+echo "xdd-flow 第一步会装 xdd-brainstorm 写 design/intent.md + design.md"

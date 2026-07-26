@@ -176,9 +176,9 @@ bash skills/xdd-init/scripts/init.sh
 
 ```bash
 # 对 AI 说:
-"用 xdd-walker 给我做一个 <你的功能>"
+"用 xdd-flow 给我做一个 <你的功能>"
 
-# walker 第一步装 xdd-brainstorm 写 design/intent.md + design.md
+# xdd-flow 第一步装 xdd-brainstorm 写 design/intent.md + design.md
 ```
 
 ## 自检

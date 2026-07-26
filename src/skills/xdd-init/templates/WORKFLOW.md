@@ -108,8 +108,8 @@ walker 每切换一层就更新 `.xdd/runs/xdd_run/status.md`：上一层 ✅，
 
 | 模式 | 用谁 | 何时 |
 |------|------|------|
-| 单工匠 | `xdd-walker` 自己装 skill 全干完 | 中小项目（默认）|
-| 多 agent | `xdd-orchestrator` 派 6 phase 子 agent | 大项目（≥3 业务线/多工种）|
+| 单工匠 | `xdd-flow` 自己装 skill 全干完 | 中小项目（默认）|
+| 多 agent | `xdd-flow` 派 xdd-* 子 agent | 大项目（≥3 业务线/多工种）|
 
 两者共享同一套 skill + 三层骨架。
 
