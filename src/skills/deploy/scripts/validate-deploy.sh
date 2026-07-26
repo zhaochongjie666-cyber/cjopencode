@@ -169,7 +169,12 @@ if [ "$MODE" = "dev" ] || [ "$MODE" = "both" ]; then
     fi
 
     # volumes: 顶层声明（命名为空则 warn）
-    if awk '/^volumes:/{flag=1; next} flag && /^[^ ]/{flag=0} flag && /^[a-zA-Z_]/{found=1} END{exit !found}' compose.dev.yml; then
+    if awk '
+      /^volumes:/{in_section=1; next}
+      in_section && /^[^[:space:]]/{in_section=0}
+      in_section && /^[[:space:]]+\S/{found=1}
+      END{exit !found}
+    ' compose.dev.yml 2>/dev/null; then
       ok "compose.dev.yml 顶层 volumes 段有命名卷声明"
     elif grep -qE "^volumes:" compose.dev.yml; then
       warn "compose.dev.yml 顶层 volumes: 段为空"
