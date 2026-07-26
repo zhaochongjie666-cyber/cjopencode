@@ -48,7 +48,7 @@ skill-name/
 
 ## Auto-Install Mechanism
 
-The `skill-deps` extension (`.pi/extensions/skill-deps.ts`) automatically:
+The `skill-deps` plugin (`opencode plugin`) automatically:
 
 1. **On startup** — scans all skills for `DEPS.md` files and checks if dependencies are met
 2. **On reload** — re-scans after `/reload`

@@ -51,7 +51,7 @@ if [ -d ".xdd" ]; then
     echo "⚠️  --force 强制覆盖（会重写 xdd_run/status/goals，design 持久锚只在缺失时补）。"
     NEW_PROJECT=true
   else
-    echo "❌ .xdd/ 已存在。xdd 只使用固定 run 目录 .xdd/runs/xdd_run；继续已有项目请直接用 walker / 下一个 skill，或 --force 重建运行骨架。"
+    echo "❌ .xdd/ 已存在。xdd 只使用固定 run 目录 .xdd/runs/xdd_run；继续已有项目请直接用 xdd-flow / 下一个 skill，或 --force 重建运行骨架。"
     exit 1
   fi
 else

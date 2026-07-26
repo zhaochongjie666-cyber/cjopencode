@@ -98,11 +98,11 @@ for each BXX:
 #   术语 / API 命名 / 错误码 / auth / 审计 / multi-tenant 隔离 全统一
 ```
 
-## 5. status.md（walker 的工作内存）
+## 5. status.md（xdd-flow 的工作内存）
 
-walker 每切换一层就更新 `.xdd/runs/xdd_run/status.md`：上一层 ✅，下一层 ⏳，更新"当前层 / 本层必读 / 上游指针"。让 status.md 替模型记，不靠脑子。
+xdd-flow 每切换一层就更新 `.xdd/runs/xdd_run/status.md`：上一层 ✅，下一层 ⏳，更新"当前层 / 本层必读 / 上游指针"。让 status.md 替模型记，不靠脑子。
 
-**ACK 索引源**：回复开头的 ACK `%>R.. G.. T.. W..%` 四区指向 —— R 指本仓库的全局 rule；G 指 `.xdd/runs/xdd_run/goals.md` 的 G 编号；T 指 `runs/xdd_run/plan/{bxx-slug}/plan.md` 的 task 编号；W 指 `.xdd/workflows.md` 的 W 编号。status.md 仍是 walker 进度内存，goals.md / plan.md / workflows.md 是 ACK 的索引源（职责不同，不混）。
+**ACK 索引源**：回复开头的 ACK `%>R.. G.. T.. W..%` 四区指向 —— R 指本仓库的全局 rule；G 指 `.xdd/runs/xdd_run/goals.md` 的 G 编号；T 指 `runs/xdd_run/plan/{bxx-slug}/plan.md` 的 task 编号；W 指 `.xdd/workflows.md` 的 W 编号。status.md 仍是 xdd-flow 进度内存，goals.md / plan.md / workflows.md 是 ACK 的索引源（职责不同，不混）。
 
 ## 6. 单工匠 vs 多 agent
 

@@ -23,7 +23,7 @@ commit():
   if empty(staged):
       suggest_what_to_stage()          # 别对着空 index 硬写
       return
-  review = xdd_commit_review(staged)   # Pi 隔离上下文只读审查，绑定 index tree/diff digest
+  review = xdd_commit_review(staged)   # opencode task 子 agent 隔离上下文只读审查，绑定 index tree/diff digest
   if !review.gate_ok: return           # 高风险阻断；普通细节三轮后可审计软放行
   msg = compose_message(staged)        # type + scope + 描述 + body
   show(msg)                             # 给用户过目

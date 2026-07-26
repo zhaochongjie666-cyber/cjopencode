@@ -17,18 +17,18 @@ description: |
 - 需要重建固定 run 工作区（用 `--force`）
 
 **不要在以下情况用**：
-- 项目已有 `.xdd/` 且想继续 → 直接调 walker / 下一个 skill
+- 项目已有 `.xdd/` 且想继续 → 直接调 xdd-flow / 下一个 skill
 - 想迁移老项目 → 手改或重跑 `--force`
 
 ## 怎么做
 
 ```
 work():
-  1. 进项目目录            -> 空仓库或新目录（已有 .xdd/ 用 --force 或 walker）
+  1. 进项目目录            -> 空仓库或新目录（已有 .xdd/ 用 --force 或 xdd-flow）
   2. 跑 init.sh            -> 生成 .xdd/ 骨架 + 本文件 + .xdd/rules/ + 注入 AGENTS.md 指针
   3. 多业务线              -> --bizlines B01-auth,B02-order 预生成业务线占位
   4. 固定 run             -> 写 current-run=xdd_run（不再创建编号目录）
-  5. 下一步                -> 启动 walker，进 xdd-brainstorm
+  5. 下一步                -> 启动 xdd-flow，进 xdd-brainstorm
 ```
 
 最快路径（单业务线）：
@@ -129,7 +129,7 @@ bash skills/xdd-init/scripts/init.sh
 2. **入口路由判定** — 检测存量代码（源码/项目配置/git 跟踪文件）→ 警告指向 `xdd-reverse`，`--force` 才继续。不让 init 盲目 scaffold 进遗留项目。
 3. **idempotent-with-warning** — 重复 init 不静默覆盖；xdd 只保留固定 `runs/xdd_run/`，需要重建运行骨架时显式 `--force`。
 4. **固定 run** — 不再创建 `xdd_run` 之外的新 run 目录；所有下游 skill 都读写 `runs/xdd_run/`，`design/` 持久锚不动。
-5. **不调 walker** — init 完打印"下一步"，但 walker 由用户触发。
+5. **不调 xdd-flow** — init 完打印"下一步"，但 xdd-flow 由用户触发。
 6. **平台中立** — 纯 bash，无 hook 依赖，无 schema.json，任何平台能跑。
 7. **inject 尊重用户文件** — `AGENTS.md`/`CLAUDE.md` 是用户文件：init 不创建新的（**例外**：全新空仓库两者都没有时，建最小 `CLAUDE.md`，让全局 rule + ACK 在入口落地）；软链跳过（只注入真文件）；注入块用 marker 包裹 + 忽略空白 diff，**被用户改过的不动只警告**。
 8. **自检** — init 是唯一输出被全下游依赖的入口，必须自检（关键文件/git/inject marker）。
@@ -155,9 +155,9 @@ bash skills/xdd-init/scripts/init.sh
 
 | 现场情况 | init 行为 | 正确路径 |
 |---------|----------|---------|
-| 空目录 / 全新项目 | 正常 scaffold | init → walker |
+| 空目录 / 全新项目 | 正常 scaffold | init → xdd-flow |
 | 有存量代码（无 `.xdd/`）| **警告 + exit**（指向 reverse）| `xdd-reverse`（反推设计 + 追溯）|
-| 已有 `.xdd/` + 同 run | exit（`--force` 才覆盖）| 直接调 walker 继续 |
+| 已有 `.xdd/` + 同 run | exit（`--force` 才覆盖）| 直接调 xdd-flow 继续 |
 
 存量检测信号：`package.json`/`go.mod`/`cargo.toml`/`pom.xml`/`requirements.txt`/`pyproject.toml`/`composer.json`/`Gemfile` 等任一，或 `src`/`app`/`server`/`lib` 等源码目录，或 git 已跟踪文件（排除 `.xdd/`）。
 
@@ -197,5 +197,5 @@ bash skills/xdd-init/scripts/init.sh
 | 现象 | 原因 | 修法 |
 |------|------|------|
 | `.xdd/ already exists` | 已初始化 | 换目录，或 `--force` 强覆盖 |
-| walker 加载后看到空 status | init 漏跑 | `bash scripts/init.sh --force` |
+| xdd-flow 加载后看到空 status | init 漏跑 | `bash scripts/init.sh --force` |
 | "检测到存量代码" | 仓库已有源码 | 改用 `xdd-reverse`，或 `--force` 确认新项目 |

@@ -2,7 +2,7 @@
 
 ## 正向开发入口
 
-先读项目的包管理锁文件、前后端启动/构建命令、后端端口、健康检查和 API 前缀，再在**项目根目录**产出 `prodapp.sh`、`devapp.sh`、生产/开发 Compose、Dockerfile 与 Nginx 配置。不要写入项目的 `.pi/`。
+先读项目的包管理锁文件、前后端启动/构建命令、后端端口、健康检查和 API 前缀，再在**项目根目录**产出 `prodapp.sh`、`devapp.sh`、生产/开发 Compose、Dockerfile 与 Nginx 配置。不要写入项目的 `.opencode/`。
 
 开始前必须执行：
 

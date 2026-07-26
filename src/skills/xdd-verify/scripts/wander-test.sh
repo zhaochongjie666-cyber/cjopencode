@@ -142,7 +142,7 @@ while [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; do
 
     echo "" | tee -a "$REPORT"
     echo "--- 修 (attempt $ATTEMPT) ---" | tee -a "$REPORT"
-    echo "phase-verifier 修: 补 RXX 实施 / 修端点 / 起服务" | tee -a "$REPORT"
+    echo "xdd-verify 修: 补 RXX 实施 / 修端点 / 起服务" | tee -a "$REPORT"
 done
 
 # 3 试未过 → 卡住回退（写 failure-log，停下问用户）
@@ -155,7 +155,7 @@ echo "[xdd] ❌ wander $MAX_ATTEMPTS 试未过, 写 $FAILURE_LOG, 停下问用�
 cat > "$FAILURE_LOG" <<EOF
 # FAILURE-LOG — 卡在 代码·验证
 
-- 子 agent: phase-verify
+- 子 agent: xdd-verify
 - 卡点: wander + 4 维一致性 $MAX_ATTEMPTS 试未过
 - 试过: 详见 $REPORT
 - 建议回退: 回 xdd-execute 修缺 RXX / 缺端点 / 起服务；若根因在设计层，回 spec/architecture
