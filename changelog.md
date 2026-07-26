@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-07-26 16:41:34 - 新增 deploy skill + deployer agent（通用部署基础设施生成）
+
+### 新增
+
+- **deploy skill**（`src/skills/deploy/`）：通用部署方法论，分析项目技术栈（Node.js/Python/Go），生成生产 + 开发两套完整部署文件。
+  - `SKILL.md`：方法论 + 决策树 + 自检
+  - `references/prod-deploy.md`：生产模式模板（多阶段 Dockerfile + Nginx + compose.prod.yml + .env.prod + prodapp.sh）
+  - `references/dev-deploy.md`：开发模式模板（bind mount + 命名卷 + 热重载 + compose.dev.yml + .env.dev + devapp.sh）
+  - `references/binary-builds.md`：Node/Python/Go 二进制构建 + Dockerfile 模式（Next.js standalone / pyinstaller / Go scratch/distroless）
+  - `references/nginx-templates.md`：SPA + API proxy + WebSocket + SSL/TLS + 多后端负载均衡
+  - `scripts/validate-deploy.sh`：配置验证脚本（多阶段构建/健康检查/Nginx proxy/版本锁定等）
+
+- **deployer agent**（`src/agents/deployer.md`）：primary agent，装 deploy skill。可独立使用，不绑定 xdd-flow。
+  - 用户说"帮我部署""容器化""docker 化""生成 Dockerfile/compose"时使用
+  - 生成产物：compose.prod.yml + compose.dev.yml + Dockerfiles + nginx.conf + .env.* + *app.sh
+  - 报告：文件清单 + 验证结果 + 启动命令
+
+### 核心设计
+
+- **前后端分离**（Node + Python/Go）：多阶段 Dockerfile 前端构建进 Nginx + API 代理
+- **纯后端**：直接暴露端口，不生成 Nginx
+- **纯前端**：Nginx 托管静态文件，无 API 代理
+- **dev 模式**：bind mount 源码 + 命名卷依赖缓存 + BuildKit cache mount，不执行 install
+- **运行容器不带源码/依赖**：多阶段构建 + non-root 用户运行
+
+### 与 xdd-flow 关系
+
+- **完全独立**：不改 xdd-flow.md，不在 xdd-flow dispatch 表
+- deployer 和 xdd-flow 都是 primary agent，用户自选
+- xdd-flow 单工匠模式可在 execute Step 0 时 `skill: deploy` 加载方法论
+- 也可独立使用："用 deployer 帮我部署项目"
+
+### 验证
+
+- install.sh 跑通，新 agent + skill 通过符号链接可访问
+
 ## 2026-07-26 12:07:05 - 迁移 xdd-flow 从 ~/ws/cjpi 到 opencode
 
 ### 迁移内容
