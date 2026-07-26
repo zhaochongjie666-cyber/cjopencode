@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # xdd-init/scripts/init.sh — 一键初始化 xdd 项目（三层设计锚骨架）
 # 生成 .xdd/design/ (持久锚) + .xdd/runs/xdd_run/ (单轮工作记录) + status.md + current-run
-# + inject：cp WORKFLOW.md 模板 + rules/ 模板 + 往 AGENTS.md/CLAUDE.md 注入 pointer
+# + inject：cp WORKFLOW.md 模板 + rules/ 模板 + 往 AGENTS.md 注入 pointer
 # 平台中立，无 hook 依赖。详见 skills/xdd-init/SKILL.md
 
 set -euo pipefail
@@ -202,7 +202,7 @@ EOF
 # 从 template 复制（G 编号由 xdd-brainstorm 生成分配）
 sed "s/{run}/$RUN_DIR/g" "$TEMPLATES_DIR/goals.md" > ".xdd/runs/$RUN_DIR/goals.md"
 
-# === inject 段：WORKFLOW.md + rules/ + AGENTS.md/CLAUDE.md pointer ===
+# === inject 段：WORKFLOW.md + rules/ + AGENTS.md pointer ===
 inject_xdd_section() {
   echo
   echo "=== inject xdd section ==="
@@ -246,17 +246,17 @@ inject_xdd_section() {
     fi
   fi
 
-  # 3. 往 AGENTS.md / CLAUDE.md 注入 pointer（用户文件，init 不创建新的）
-  for f in AGENTS.md CLAUDE.md; do
+  # 3. 往 AGENTS.md 注入 pointer（用户文件，init 不创建新的）
+  for f in AGENTS.md; do
     if [ -L "$f" ]; then
       echo "→ 跳过 $f (软链，指向 $(readlink "$f"))"
       continue
     fi
     if [ ! -f "$f" ]; then
-      # 全新空仓库 + AGENTS.md/CLAUDE.md 都缺：直接拼「inject 块 + 占位」一步建好 CLAUDE.md，
-      # 让全局 rule + ACK 在入口就落地（run 迁移/已有项目不建；AGENTS.md 由用户自建或软链）
+      # 全新空仓库 + AGENTS.md 缺：直接拼「inject 块 + 占位」一步建好 AGENTS.md，
+      # 让全局 rule + ACK 在入口就落地（run 迁移/已有项目不建）
       # 直接拼而不走下方 grep 分支，避免占位文案误含 marker 字面时被当成"已注入"跳过
-      if [ "$f" = "CLAUDE.md" ] && [ ! -e "AGENTS.md" ] && [ "$NEW_PROJECT" = "true" ]; then
+      if [ "$f" = "AGENTS.md" ] && [ "$NEW_PROJECT" = "true" ]; then
         tmp="$(mktemp)"
         cat "$TEMPLATES_DIR/inject-block.md" - > "$tmp" <<'PLACE'
 
@@ -318,7 +318,7 @@ self_check() {
       echo "  ℹ️  提醒：.xdd/runs/xdd_run/audits/ 可按需加入 .gitignore"
     fi
   fi
-  for f in AGENTS.md CLAUDE.md; do
+  for f in AGENTS.md; do
     if [ -f "$f" ] && [ ! -L "$f" ] && grep -q '<!-- xdd:start -->' "$f"; then
       echo "  ✅ $f inject marker 落地"
     fi

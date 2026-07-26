@@ -2,7 +2,7 @@
 name: xdd-init
 description: |
   xdd 入口 —— 把空仓库变成 xdd 项目。生成简化版 .xdd/（design/ 设计层锚 + plan/ 桥接 + status.md 进度 + current-run）。
-  + inject：cp WORKFLOW.md 模板 + rules/ 模板 + 往 AGENTS.md/CLAUDE.md 注入 xdd pointer（idempotent，被改过不动）。
+  + inject：cp WORKFLOW.md 模板 + rules/ 模板 + 往 AGENTS.md 注入 xdd pointer（idempotent，被改过不动）。
   平台中立，无 hook 依赖。新项目第一步。
   触发：初始化、init、新项目、xdd-init、起项目、开始、脚手架骨架。
 ---
@@ -91,7 +91,7 @@ bash skills/xdd-init/scripts/init.sh
 - **run 结束时要把“感悟”提升到 design/**——验证中发现的新规则/约束 -> `spec/rules.md`；架构中发现的新模式/反模式 -> `architecture/`；失败模式/兜底 -> `resilience/`；用户反馈/意图修正 -> `intent.md`/`design.md`。提升时不引用 xdd_run。
 - **pilot/实验性的东西留在 runs/**——PoC 代码、实验结果、临时方案不提升到 design/（除非验证通过且确认是持久决策）。
 
-**inject 到用户文件**：若项目根已有 `AGENTS.md` / `CLAUDE.md`，init 在文件开头注入一段用 `<!-- xdd:start -->` / `<!-- xdd:end -->` 包裹的 pointer（全局 rule + ACK v2 定义 + Backend/UI-UX/recap 指向 `.xdd/`）。**全新空仓库**（两者都没有）时，init 建一个最小 `CLAUDE.md` 再注入——让全局 rule + ACK 在入口就落地。
+**inject 到用户文件**：若项目根已有 `AGENTS.md`，init 在文件开头注入一段用 `<!-- xdd:start -->` / `<!-- xdd:end -->` 包裹的 pointer（全局 rule + ACK v2 定义 + Backend/UI-UX/recap 指向 `.xdd/`）。**全新空仓库**（没有）时，init 建一个最小 `AGENTS.md` 再注入——让全局 rule + ACK 在入口就落地。
 
 **ACK v2**（注入块里定义）：每次回复开头带 `%>R{规则} G{目标} T{任务} W{工作流}%`，把「守哪些 rule / 追哪个 goal / 干哪个 task / 走哪步 workflow」加载进工作内存、集中注意力。四区索引源：R→本文件 rule 1~6（. 分隔逐个列）；G→`runs/xdd_run/goals.md` 的 G 编号；T→`runs/xdd_run/plan/{bxx-slug}/plan.md` 的 task 编号；W→`.xdd/workflows.md` 的 W 编号。**人肉检测面**：用户扫回复开头对得上 = 在轨，不配脚本校验（ACK 是瞬时对话流、不落盘）。
 
@@ -131,7 +131,7 @@ bash skills/xdd-init/scripts/init.sh
 4. **固定 run** — 不再创建 `xdd_run` 之外的新 run 目录；所有下游 skill 都读写 `runs/xdd_run/`，`design/` 持久锚不动。
 5. **不调 xdd-flow** — init 完打印"下一步"，但 xdd-flow 由用户触发。
 6. **平台中立** — 纯 bash，无 hook 依赖，无 schema.json，任何平台能跑。
-7. **inject 尊重用户文件** — `AGENTS.md`/`CLAUDE.md` 是用户文件：init 不创建新的（**例外**：全新空仓库两者都没有时，建最小 `CLAUDE.md`，让全局 rule + ACK 在入口落地）；软链跳过（只注入真文件）；注入块用 marker 包裹 + 忽略空白 diff，**被用户改过的不动只警告**。
+7. **inject 尊重用户文件** — `AGENTS.md` 是用户文件：init 不创建新的（**例外**：全新空仓库两者都没有时，建最小 `AGENTS.md`，让全局 rule + ACK 在入口落地）；软链跳过（只注入真文件）；注入块用 marker 包裹 + 忽略空白 diff，**被用户改过的不动只警告**。
 8. **自检** — init 是唯一输出被全下游依赖的入口，必须自检（关键文件/git/inject marker）。
 
 ## inject 行为（幂等细节）
@@ -142,7 +142,7 @@ bash skills/xdd-init/scripts/init.sh
 | 有 marker，内容 == 模板（忽略空白）| 跳过（idempotent）|
 | 有 marker，内容 != 模板（被改过）| **不动 + 警告**（让用户手动决定）|
 | 文件是软链 | 跳过（真文件那次会处理，避免双写）|
-| 文件不存在（全新空仓库 + AGENTS.md/CLAUDE.md 都缺）| 建最小 `CLAUDE.md`（让全局 rule + ACK 落地）|
+| 文件不存在（全新空仓库 + AGENTS.md 都缺）| 建最小 `AGENTS.md`（让全局 rule + ACK 落地）|
 | 文件不存在（已有项目）| 跳过（不创建用户文件）|
 | `rules/*.rules` 已存在 | 跳过（用户改过的保护）|
 | `workflows.md` | 首次生成（ACK W 区索引源）；已存在跳过（用户文件保护）|
@@ -188,7 +188,7 @@ bash skills/xdd-init/scripts/init.sh
 □ design/ 持久锚 + runs/xdd_run/ 工作区 都创建？
 □ git 仓库？（非 git → ⚠️ 提醒 git init）
 □ .gitignore 是否需要加 .xdd/runs/ 规则？（ℹ️ 提醒）
-□ inject marker 落地（AGENTS.md/CLAUDE.md 若注入过）？
+□ inject marker 落地（AGENTS.md 若注入过）？
 □ design/ 产物不引用 xdd_run（design 是持久锚，长期保留）？
 ```
 
