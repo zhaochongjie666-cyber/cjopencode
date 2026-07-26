@@ -1,6 +1,54 @@
 # Changelog
 
-## 2026-07-26 18:06:46 - 升级 deploy skill 为 Tier 1-3 高级部署系统（专家级系统工程师）
+## 2026-07-26 19:04:07 - 扩展 deploy 为环境构建 + 部署生成双能力
+
+### 定位升级
+
+deployer 从"部署文件生成器"升级为**环境构建专家**：
+- **能力 1**：构建项目所需运行环境（本地 dev / K3S 测试集群 / CI/CD pipeline）
+- **能力 2**：生成 Tier 1-3 部署文件
+
+K3S 测试集群是 deployer 构建环境的**旗舰例子**。
+
+### 新增 references（3 个）+ scripts（3 个）
+
+**新 references**：
+- `env-setup.md`：本地开发环境配置（Node/Python/Go runtime + DB + IDE）
+- `k3s-dev-env.md`：K3S 测试集群 3 种构建方式（裸 K3S / K3D / HA）+ CI/CD 用法
+- `ci-cd.md`：GitHub Actions / GitLab CI / BuildKit 缓存 / 镜像安全扫描
+
+**新 scripts**：
+- `env-setup.sh`：检测 + 安装本地开发环境（apt/brew 适配）
+- `k3s-dev-setup.sh`：一键启动 K3S 测试集群（支持 k3s/k3d/ha/disable-traefik）
+- `env-validate.sh`：环境就绪验证（basic/full/k8s 三个 level）
+
+### SKILL.md 重写
+
+- 两能力决策树（什么时候用环境构建 vs 部署生成）
+- 环境构建产物对照表（本地 dev / K3S 测试 / CI/CD）
+- Tier 1-3 选择逻辑保持
+
+### deployer.md 重写
+
+- "何时用哪个能力"表格（用户说"部署到测试环境"= 两者都要）
+- Step 4a：环境构建（本地 dev / K3S 测试 / CI/CD）
+- Step 4b：部署生成（Tier 1-3）
+- 新增 K3S 测试集群核心价值说明
+
+### K3S 测试集群作为旗舰能力
+
+- 单服务器 K3S（30-60 秒启动）
+- K3D（Docker 内 K3S，5-10 秒）
+- HA 集群（嵌入式 etcd）
+- 用途：E2E 测试、CI/CD、本地开发、教学演示
+
+### 不迁移
+
+- 不迁移 xdd-* flow，不绑定 xdd-flow pipeline
+- 不实际 provision 服务器（生成 IaC 脚本由用户执行）
+- 不生成真实密钥（只生成模板 + 占位符）
+
+## 2026-07-26 18:06:46 - 升级 deploy skill 为 Tier 1-3 高级部署系统
 
 ### 扩展
 
