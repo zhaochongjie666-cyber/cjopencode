@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-07-26 18:06:46 - 升级 deploy skill 为 Tier 1-3 高级部署系统（专家级系统工程师）
+
+### 扩展
+
+deploy skill 从单主机 Docker 扩展为三 Tier 高级部署系统：
+
+- **Tier 1**：单主机 Docker（保留原 compose + Nginx + .env）
+- **Tier 2**：K3S 集群编排（K8S manifests + Helm + Ingress + 持久化存储 + Secret）
+- **Tier 3**：完整平台（HA 集群 + HPA + Prometheus/Loki/Grafana + ArgoCD GitOps）
+
+### 新增 10 个 references + 4 个 scripts
+
+**新 references（10 个）**：
+- `k3s-setup.md`：K3S 单节点/多节点/HA 安装、镜像仓库配置
+- `k8s-manifests.md`：Namespace/Deployment/Service/Ingress/ConfigMap/Secret/PVC/ServiceAccount/HPA/Kustomize
+- `helm-templates.md`：Chart.yaml/values.yaml/_helpers.tpl/deployment/service/ingress/hpa/pvc
+- `cluster-networking.md`：Traefik Ingress + cert-manager TLS + MetalLB + NetworkPolicy + Service Mesh
+- `persistent-storage.md`：local-path / Longhorn / NFS / StatefulSet / Velero 备份
+- `secrets-config.md`：Secret 类型 + Sealed Secrets + External Secrets + Vault/云 SM
+- `monitoring.md`：kube-prometheus-stack + ServiceMonitor + PrometheusRule + Alertmanager + Loki + Jaeger
+- `gitops.md`：ArgoCD App of Apps + Image Updater + Argo Rollouts（蓝绿/金丝雀）+ Flux 对比
+- `ha-cluster.md`：embedded etcd HA + Load Balancer + etcd 备份恢复
+- `autoscaling.md`：HPA + VPA + KEDA + Cluster Autoscaler + PDB + 拓扑分布
+
+**新 scripts（4 个）**：
+- `k3s-init.sh`：K3S master 节点初始化（单节点/HA，可选 disable Traefik）
+- `k3s-join.sh`：worker/额外 master 加入集群（支持 label + taint）
+- `deploy-k8s.sh`：kubectl apply（支持 Kustomize + dry-run + prune + namespace）
+- `validate-k8s.sh`：集群连通性/节点/Pod/Service/Ingress/PVC/HPA/Secret/NetworkPolicy 全面验证
+
+### 升级 deployer agent
+
+- 加 Tier 选择决策树（用 question 工具询问用户需求）
+- 覆盖 Tier 1-3 全部场景
+- 推荐路径：单主机 -> K3S -> HA + 可观测 + GitOps
+
+### 设计要点
+
+- **Tier 选择**：根据服务器数量 + HA/扩缩容/可观测/GitOps 需求自动选择
+- **不重叠**：单主机用 Docker compose，集群用 K8S manifests，不混合
+- **生产就绪**：HA 集群、滚动更新、PodDisruptionBudget、网络策略都覆盖
+- **GitOps 友好**：所有 manifests 适合 ArgoCD/Flux 监听 Git 仓库自动部署
+
 ## 2026-07-26 16:41:34 - 新增 deploy skill + deployer agent（通用部署基础设施生成）
 
 ### 新增

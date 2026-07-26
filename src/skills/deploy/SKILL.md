@@ -1,154 +1,165 @@
 ---
 name: deploy
 description: |
-  通用部署 skill -- 分析项目技术栈，生成完整部署基础设施。
-  生产模式：多阶段 Dockerfile 前端构建进 Nginx + API 代理 + compose.prod.yml + .env.prod。
-  开发模式：bind mount 项目目录 + 热重载 + 命名卷依赖缓存 + compose.dev.yml + .env.dev。
+  高级部署 skill -- 专家级系统工程师能力。分析项目技术栈，生成完整部署基础设施。
+  Tier 1：单主机 Docker（compose.prod.yml/dev.yml + Nginx + .env + 启动脚本）。
+  Tier 2：K3S 集群编排（K8S manifests + Helm chart + 内网 + Ingress + 持久化存储 + Secret）。
+  Tier 3：完整平台（HA 集群 + HPA 自动扩缩 + 可观测 Prometheus/Grafana/Loki + GitOps ArgoCD/Flux）。
   支持 Node.js（npm/pnpm/yarn + Vite/Next/React）、Python（pip/venv + FastAPI/Flask/Django）、Go（go build + CGO）。
-  触发：部署、deploy、docker compose、Dockerfile、Nginx、生产环境、开发环境、prodapp、devapp、容器化、containerize。
+  触发：部署、deploy、docker compose、Dockerfile、Nginx、生产环境、开发环境、prodapp、devapp、容器化、containerize、K8S、K3S、kubernetes、集群、cluster、Helm、manifests。
 ---
 
-# deploy - 通用部署基础设施生成
+# deploy - 高级部署基础设施生成（系统工程师级别）
 
 ## 本 skill 做什么
 
-分析项目技术栈，一次性生成全套部署文件：Dockerfile、docker-compose、Nginx 配置、.env 模板、启动脚本。生产开发生成两套，互不干扰。
+一个**专家级系统工程师**，把任意项目从"本地代码"变成"生产可运行的分布式系统"。支持三个 Tier：
+
+```
+Tier 1: 单主机 Docker        -> 单机/小项目，<5 服务，<10K 用户
+Tier 2: K3S 集群编排         -> 中等规模，多服务，10K-100K 用户，需要高可用和扩缩容
+Tier 3: 完整平台             -> 大规模，需要 HA、可观测、GitOps 自动化
+```
 
 ## 何时用
 
-- 新项目需要容器化部署
-- 已有项目缺 Dockerfile / compose / Nginx 配置
-- 需要分离生产和开发环境
-- 用户说"帮我部署""容器化""docker 化"
+- Tier 1：单机/单服务器跑得起来的项目，< 5 个服务
+- Tier 2：需要多服务器部署、需要负载均衡、自动恢复、滚动更新
+- Tier 3：生产关键业务，需要 HA 集群、监控告警、GitOps 自动部署
+
+## Tier 选择决策树
+
+```
+需要多少服务器?
+├── 1 台        -> Tier 1 (单主机 Docker)
+├── 2-5 台     -> Tier 2 (K3S 集群)
+└── 5+ 台 + 关键业务 -> Tier 3 (K3S HA + 可观测 + GitOps)
+
+需要高可用?
+├── 否         -> Tier 1
+└── 是         -> Tier 2/3
+
+需要自动扩缩容?
+├── 否         -> Tier 1/2
+└── 是         -> Tier 2/3 (HPA)
+
+需要可观测（监控/日志/告警）?
+├── 否         -> Tier 1/2
+└── 是         -> Tier 3
+
+需要 GitOps 自动部署?
+├── 否         -> Tier 1/2
+└── 是         -> Tier 3 (ArgoCD/Flux)
+```
 
 ## 怎么做
 
-```
-work():
-  1. 分析项目    -> 读 lockfiles 判定技术栈 + 前后端分离/纯后端
-  2. 生成生产文件 -> compose.prod.yml + .env.prod + Dockerfiles + Nginx + prodapp.sh
-  3. 生成开发文件 -> compose.dev.yml + .env.dev + 热重载配置 + devapp.sh
-  4. 验证       -> validate-deploy.sh
-```
-
-### Step 1：分析项目
-
-读以下文件判定技术栈：
-
-| 文件 | 判定 |
-|------|------|
-| `package.json` | Node.js 前端/全栈；框架（Vite/Next/React/Vue）；包管理器（npm/pnpm/yarn） |
-| `go.mod` | Go 后端；Go 版本；CGO 依赖 |
-| `requirements.txt` / `pyproject.toml` / `Pipfile` | Python 后端；框架（FastAPI/Flask/Django） |
-| `Cargo.toml` | Rust（references/binary-builds.md 有模板，本 skill 核心 3 栈不覆盖 Rust） |
-
-判定项目类型：
-- **前后端分离**：有 `package.json`（前端）+ `go.mod`/`requirements.txt`（后端）-> 需要 Nginx 托管前端 + 代理后端
-- **纯后端**：只有 `go.mod`/`requirements.txt` -> 不需要 Nginx，直接暴露后端端口
-- **纯前端**：只有 `package.json` -> Nginx 托管静态文件，无后端代理
-
-读后端代码确认：
-- API 前缀（`/api/`、`/v1/` 等）
-- 监听端口（默认 8000/8080/3000）
-- healthcheck 路径（`/healthz`、`/health` 等）
-
-### Step 2：生成生产文件
-
-详见 `references/prod-deploy.md`。核心产物：
+### Tier 1：单主机 Docker
 
 ```
-项目根/
-├── compose.prod.yml          # 生产 compose（frontend=nginx + backend + db/cache）
-├── .env.prod                 # 生产环境变量模板
-├── Dockerfile.frontend       # 前端多阶段构建（Node build -> Nginx serve）
-├── Dockerfile.backend        # 后端运行时镜像（Python slim / Go distroless）
-├── nginx/
-│   └── nginx.conf            # Nginx 配置（SPA fallback + /api/ proxy）
-└── prodapp.sh                # 生产启动脚本
+1. 分析项目 -> 读 lockfiles 判定技术栈
+2. 生成生产文件 -> compose.prod.yml + .env.prod + Dockerfiles + Nginx + prodapp.sh
+3. 生成开发文件 -> compose.dev.yml + .env.dev + 热重载配置 + devapp.sh
+4. 验证 -> validate-deploy.sh
 ```
 
-**生产模式要点**：
-- 前端多阶段 Dockerfile：第一阶段 Node 按锁文件安装 + 构建，第二阶段 Nginx 只放静态产物
-- 运行容器**不携带源码和 node_modules**
-- Nginx SPA fallback（未知路由回退 index.html）+ `/api/` 反向代理到后端服务名
-- 后端镜像只含运行时依赖，设 healthcheck
-- 后端 healthy 后 Nginx 才启动（`depends_on: condition: service_healthy`）
-- 镜像锁定明确版本，不用 `latest`
+详细参考：`references/prod-deploy.md`、`references/dev-deploy.md`、`references/binary-builds.md`、`references/nginx-templates.md`
 
-### Step 3：生成开发文件
-
-详见 `references/dev-deploy.md`。核心产物：
+### Tier 2：K3S 集群编排
 
 ```
-项目根/
-├── compose.dev.yml           # 开发 compose（bind mount + 热重载）
-├── .env.dev                  # 开发环境变量模板
-└── devapp.sh                 # 开发启动脚本
+1. 分析项目 + 集群规模
+2. 生成 K8S manifests -> k8s/ 目录（Deployment/Service/Ingress/PVC/ConfigMap/Secret）
+3. 生成 K3S 安装脚本 -> scripts/k3s-init.sh + k3s-join.sh
+4. 配置内网 + Ingress -> Traefik (K3S 默认) + cert-manager (TLS)
+5. 配置持久化 -> local-path (默认) / Longhorn (分布式)
+6. 部署 -> scripts/deploy-k8s.sh (kubectl apply)
+7. 验证 -> validate-k8s.sh
 ```
 
-**开发模式要点**：
-- 前后端项目目录通过 **bind mount** 挂载到容器
-- 热重载命令启动：前端 `vite --host 0.0.0.0`，后端 `uvicorn --reload` / `air`
-- 依赖目录用**命名卷**（`frontend_node_modules`、`backend_venv`、`go_mod_cache`）
-- bind mount 不覆盖依赖卷 -> 重启不重复安装
-- BuildKit cache mount 缓存 npm/pip/go 下载缓存
-- `devapp.sh` 不执行 `npm install`/`pip install`（镜像构建时已装）
+详细参考：`references/k3s-setup.md`、`references/k8s-manifests.md`、`references/cluster-networking.md`、`references/persistent-storage.md`、`references/secrets-config.md`
 
-### Step 4：验证
-
-```bash
-bash skills/deploy/scripts/validate-deploy.sh
-```
-
-验证项：
-1. 生产：`docker compose -f compose.prod.yml up -d --build --wait` -> 所有 healthcheck 过
-2. 生产：curl 前端页面 + curl `/api/healthz` 通
-3. 开发：`docker compose -f compose.dev.yml up --build` -> 服务起来
-4. 开发：修改前端文件 -> 浏览器看到热更新
-5. 开发：修改后端文件 -> 服务自动重载
-6. 缓存：连续两次 `devapp.sh` -> 第二次不重新安装依赖
-7. 攻击：停掉后端 -> Nginx 返回 502（不把请求路由到 SPA）
-
-## 技术栈决策树
+### Tier 3：完整平台
 
 ```
-有 package.json?
-├── 是 -> 前端 = Node.js
-│   ├── 有 go.mod? -> 后端 = Go      -> 前后端分离
-│   ├── 有 requirements.txt / pyproject.toml? -> 后端 = Python -> 前后端分离
-│   └── 都没有 -> 纯前端（Nginx 托管，无后端代理）
-└── 否
-    ├── 有 go.mod? -> 纯后端 Go
-    ├── 有 requirements.txt / pyproject.toml? -> 纯后端 Python
-    └── 都没有 -> 报错：无法识别技术栈
+Tier 2 全部内容 +
+1. HA 集群 -> references/ha-cluster.md（embedded etcd 多 master）
+2. 自动扩缩容 -> references/autoscaling.md（HPA + Cluster Autoscaler）
+3. 可观测 -> references/monitoring.md（Prometheus + Grafana + Loki）
+4. GitOps -> references/gitops.md（ArgoCD / Flux）
+5. Helm chart -> references/helm-templates.md（复杂应用打包）
 ```
 
-## 二进制构建
+## 产物对照表
 
-各语言的二进制构建和 Dockerfile 模式详见 `references/binary-builds.md`：
-- **Node.js**：`npm run build` -> `dist/`，多阶段 Dockerfile
-- **Python**：`pip install` + venv，可选 pyinstaller 打包
-- **Go**：`go build -o bin/`，CGO_ENABLED=0，multi-stage -> scratch/distroless
+| Tier | 产物 | 工具/命令 |
+|------|------|-----------|
+| 1 | `compose.prod.yml` + `compose.dev.yml` + `Dockerfile.*` + `nginx.conf` + `.env.*` + `*app.sh` | `docker compose up` |
+| 2 | `k8s/*.yaml` + `scripts/k3s-init.sh` + `scripts/k3s-join.sh` + `scripts/deploy-k8s.sh` | `kubectl apply` |
+| 3 | Tier 2 全部 + `helm/` + `monitoring/` + `gitops/` + HA 配置 | `kubectl apply` + `helm install` |
 
-## Nginx 配置
+## 技术栈覆盖
 
-Nginx 配置模板详见 `references/nginx-templates.md`：
-- SPA + API proxy 完整配置
-- gzip + 静态资源缓存
-- WebSocket proxy（开发热重载用）
-- SSL/TLS 模板（注释，按需启用）
+| 语言 | Tier 1 Dockerfile | Tier 2 K8S |
+|------|------------------|-----------|
+| **Node.js** (npm/pnpm/yarn + Vite/Next/React) | 多阶段：Node build -> Nginx serve | Docker image -> Deployment |
+| **Python** (pip/venv + FastAPI/Flask/Django) | python:3.12-slim + gunicorn/uvicorn | 同 |
+| **Go** (go build + CGO) | multi-stage: golang -> scratch/alpine/distroless | 同 |
 
-## 自检
+详情：`references/binary-builds.md`
 
+## Tier 1 vs Tier 2/3 关键差异
+
+| 维度 | Tier 1 (Docker) | Tier 2/3 (K3S) |
+|------|-----------------|----------------|
+| 部署单元 | 容器 | Pod |
+| 服务发现 | docker network DNS | K8S Service + CoreDNS |
+| 负载均衡 | Nginx 显式 proxy | Service 自动 + Ingress |
+| 配置注入 | .env 文件 | ConfigMap + Secret |
+| 存储 | named volume | PVC + StorageClass |
+| 滚动更新 | `docker compose up --build` | Deployment strategy + HPA |
+| 自愈 | restart policy | Pod restartPolicy + replicas |
+| 多主机 | ❌ | ✅ |
+
+## 不做的事
+
+- ❌ 实际 provision 服务器（生成 IaC 脚本由用户执行）
+- ❌ 改业务代码（只生成部署文件）
+- ❌ 推送到 Git / 镜像仓库（用户决定）
+- ❌ 真实的密钥/Secret 值（只生成模板 + 占位符）
+- ❌ 跑 `kubectl apply` / `docker compose up`（验证脚本检查配置，用户决定执行）
+
+## 自检（按 Tier）
+
+### Tier 1
 ```
-□ 项目技术栈判定正确（前端/后端/纯后端/纯前端）？
-□ compose.prod.yml 所有服务有 healthcheck？
-□ 前端 Dockerfile 是多阶段构建（运行容器不带 node_modules/源码）？
+□ 多阶段 Dockerfile 前端构建进 Nginx？
+□ 运行容器不带 node_modules/源码？
+□ 所有服务有 healthcheck？
 □ Nginx SPA fallback + /api/ proxy 配置正确？
-□ compose.dev.yml 有 bind mount + 命名卷？
-□ 热重载命令正确（vite --host 0.0.0.0 / uvicorn --reload / air）？
-□ .env.prod 和 .env.dev 模板生成（含所有服务需要的环境变量）？
-□ prodapp.sh 和 devapp.sh 有 set -euo pipefail + Docker 检查？
-□ validate-deploy.sh 全部通过？
-□ 停后端时 Nginx 返回 502（不是把 API 请求路由到 SPA）？
+□ dev 模式 bind mount + 命名卷 + 热重载？
+□ .env.prod/.env.dev 模板生成？
+□ validate-deploy.sh 通过？
+```
+
+### Tier 2
+```
+□ K3S master/worker 安装脚本生成？
+□ K8S manifests 完整（Deployment/Service/Ingress/PVC）？
+□ Ingress 配置 TLS（cert-manager）？
+□ 内网服务间通信测试通？
+□ PVC 绑定 StorageClass？
+□ Secret 不在 Git 仓库？
+□ validate-k8s.sh 通过？
+```
+
+### Tier 3
+```
+□ HA 集群至少 3 master + embedded etcd？
+□ HPA 配置（CPU/内存阈值 + min/max replicas）？
+□ Prometheus 抓取所有应用 metrics？
+□ Grafana 仪表盘导入？
+□ Loki 收集所有 Pod 日志？
+□ ArgoCD/Flux 监听 Git 仓库自动部署？
+□ 告警规则配置（Alertmanager）？
 ```
