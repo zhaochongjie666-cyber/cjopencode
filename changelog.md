@@ -1,5 +1,54 @@
 # Changelog
 
+## 2026-07-26 12:07:05 - 迁移 xdd-flow 从 ~/ws/cjpi 到 opencode
+
+### 迁移内容
+
+从 pi 生态（`~/ws/cjpi`）迁移 xdd-flow 全流程开发体系到 opencode 生态。参考 normal-flow 迁移经验，采用 agent 自编排方案（方案 C）：不移植 TypeScript 插件工具，agent 用内置 `read`/`write`/`edit`/`bash`/`glob`/`grep`/`skill`/`task` 自行完成所有工作。
+
+### 新增
+
+- **xdd-flow**（`src/agents/xdd-flow.md`）：primary agent，合并原 `xdd-walker`（单工匠）+ `xdd-orchestrator`（编排）为统一入口。小项目自己装 skill 全干完，大项目（≥3 业务线）派 xdd-* 子 agent 并行。
+  - `permission.task` 限制只能派 6 个 xdd-* subagent + explore + general。
+
+- **6 个 subagent**（`src/agents/xdd-*.md`）：原 `phase-*` 重命名为 `xdd-*`：
+  - `xdd-brainstorm` -- 意图锚（装 xdd-brainstorm skill）
+  - `xdd-design` -- 规则+结构+前端锚（装 xdd-spec + xdd-architecture + xdd-wire）
+  - `xdd-resilience` -- 韧性锚（装 xdd-resilience skill）
+  - `xdd-plan` -- 桥接层 TDD 计划（装 xdd-plan skill）
+  - `xdd-build` -- 代码实现 + 自审（装 xdd-execute + xdd-cleanup skill）
+  - `xdd-verify` -- 真实验证 + 聚合裁决（装 xdd-verify skill）
+  - 每个 subagent 声明 `tools: {task: false}`，不派子 subagent。
+
+- **20 个 skill**（`src/skills/xdd-*/`）：从 `~/ws/cjpi/skills/` 原样复制（含 scripts/references/templates）。丢弃 `xdd-subagents`（pi 专属，被 phase-*.md 替代）。
+
+### TS 工具引用改写（agent 自编排，方案 C）
+
+原 xdd 的 4 个 TypeScript 工具（`extensions/xdd/tools/`）不移植。改为 agent 用内置工具自编排：
+
+| 原 TS 工具 | 改写为 | 影响文件 |
+|-----------|-------|---------|
+| `xdd_runtime_observe` | `bash` 跑 healthcheck/curl + `read` 对比基线 + `write` 保存 incident | xdd-verify.md, xdd-verify/SKILL.md |
+| `xdd_quality_score` | `read`/`glob` 检查证据文件 + `bash` git status + `write` quality-score.json | xdd-verify.md, xdd-verify/SKILL.md |
+| `xdd_release_decision` | `read`/`grep` 逐项检查 gate + `write` release-decision.json | xdd-verify.md, xdd-verify/SKILL.md |
+| Pi AIGate code review | `read` 源码自审 6 角度 + `write` code-review.json + xdd-flow 可 `task` 派 general 复审 | xdd-build.md, xdd-execute/SKILL.md |
+
+### 路径修复
+
+- `skills/xdd-init/SKILL.md`：`~/.claude/skills/` -> `~/.config/opencode/skills/`
+- `skills/xdd-skill-creator/scripts/run_eval.py`：仍引用 Claude Code CLI（`claude -p`、`.claude/commands/`），需后续适配 opencode（非核心流程，暂留）
+
+### 与现有 nf-* 流程共存
+
+xdd-flow / flow-agent 各自独立，用户自选。install.sh 不用改（已处理 agents/skills/plugins 符号链接）。
+
+### 未迁移
+
+- `extensions/xdd/`（78 个 TS 文件）-- agent 自编排替代
+- `extensions/xdd-subagents/` -- xdd-*.md subagent 替代
+- `skills/xdd-subagents/` -- 丢弃
+- `pi/`、`node_modules/`、`.pi/`、`docs/`
+
 ## 2026-07-25 - 新增 e2e-tester subagent + e2e-test skill（浏览器 E2E 测试）
 
 ### 新增
