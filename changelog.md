@@ -1,5 +1,75 @@
 # Changelog
 
+## 2026-07-25 - 新增 e2e-tester subagent + e2e-test skill（浏览器 E2E 测试）
+
+### 新增
+
+按 AGENTS.md 开发流程"先写 gherkin scenario -> TDD 开发 -> E2E browser 测试"，
+补齐第三阶段：浏览器 E2E 测试。
+
+- **e2e-tester**（`src/agents/e2e-tester.md`）：subagent，支持 task_id 续接。
+  读 .feature 场景 + 用户旅途文档，用 Playwright 驱动浏览器 click/navigate/screenshot/assert，
+  产出 .nf/runs/e2e-report.md + .nf/runs/screenshots/ 截图。
+
+- **e2e-test skill**（`src/skills/e2e-test/SKILL.md`）：浏览器 E2E 测试方法论。
+  - 环境准备：检查应用运行、安装 Playwright
+  - 场景转测试：从 Gherkin Scenario 提取步骤 -> Playwright test
+  - 用户旅途测试：从 design.md 旅程 -> 多步浏览器测试
+  - 兜底场景测试：错误密码/无权限/边界值，证明页面真拦截了
+  - 报告结构 + Gate 硬检查（报告存在/正向通过/兜底测试/真实浏览器操作/截图/P0=0）
+
+- **flow-agent.md** 更新：两阶段 -> 三阶段（design -> attack -> e2e）。
+  - task permission 新增 `e2e-tester: allow`
+  - 新增阶段 3 Gate 标准（6 条，含 glob 检查截图文件）
+  - 卡住时回退路径：e2e 发现 bug -> 回阶段 2 修实现
+
+### 验证
+
+- 符号链接验证：agents/e2e-tester.md + skills/e2e-test/SKILL.md 通过 symlink 可访问。
+
+## 2026-07-25 - 架构重构：去掉 nf_* 插件工具依赖，改用 task_id 续接
+
+### 根因确认
+
+nf_* 插件工具（nf_start/nf_observe/nf_desired_state/nf_difference/nf_submit/nf_advance/nf_resume）
+**实际未出现在 flow-agent 可用工具列表中**。flow-agent 实际可用工具只有：
+glob / grep / read / skill / task / todowrite / question / webfetch。
+
+插件代码本身能加载（bun import 验证 7 工具注册成功），但 opencode 运行时的
+插件工具 -> agent 工具列表的桥接存在断点（可能是 v1/v2 工具注册差异，
+或 InstanceState 初始化时序问题）。不再追查此问题，改为不依赖插件工具。
+
+### 架构变更：flow_agent 自编排 + task_id 续接
+
+**旧架构**: flow_agent 调 nf_* 插件工具 -> controller 状态机 -> 硬 Gate
+**新架构**: flow_agent 在 prompt 中自行编排控制循环，用 read/grep 做 Gate 检查，用 task+task_id 派发/续接 subagent
+
+**flow-agent.md** 重写：
+- 控制循环编码在 prompt 里：observe(read) -> difference(grep对照) -> dispatch(task) -> check(read) -> advance
+- 两阶段 Gate 标准用表格写明：每条条件 + 检查方法（read/grep 命令）
+- task_id 续接规则：首次不传 task_id（fresh），修复时传 task_id（保留 subagent 上下文）
+- 每阶段最多重试 3 次，超过用 question 向用户报告
+- 用 todowrite 跟踪阶段进度
+
+**nf-designer.md** 重写：
+- 删除所有 nf_* 工具 deny 规则（工具不存在，无需 deny）
+- 新增"续接模式"段：首次全量产出，续接时直接修缺口
+- 保持以 skill 为准的薄包装结构
+
+**nf-attacker.md** 重写：
+- 同上，删除 nf_* deny，新增续接模式说明
+
+### 优势
+
+- **不依赖插件工具**：flow_agent 只用内置工具（read/glob/grep/task/todowrite），任何 opencode 版本都能跑
+- **task_id 续接**：subagent 保留上下文，修复时不用从头读文件，更高效
+- **Gate 透明**：检查标准在 prompt 里，flow_agent 自己跑 grep 验证，不依赖黑盒工具
+
+### 遗留
+
+- normal-flow 插件仍保留在 src/plugins/（session.idle hook 因无 runtime.json 不会触发，无害但无用）
+- 后续可考虑删除插件或改为纯参考代码
+
 ## 2026-07-25 - 修复 Flow-Agent 工具幻觉 bug + skill agent 重构（以 skill 为准）
 
 ### Bug 修复：Flow-Agent 不走下一步
