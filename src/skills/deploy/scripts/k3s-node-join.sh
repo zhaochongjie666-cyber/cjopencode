@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# k3s-join.sh - Worker 节点加入 K3S 集群
-# 用法: sudo bash skills/deploy/scripts/k3s-join.sh <SERVER_URL> <TOKEN>
-#   或: sudo bash k3s-join.sh --token-file=/tmp/k3s-token --server=10.0.0.10
+# k3s-node-join.sh - Worker 节点加入 K3S 集群
+# 用法: sudo bash skills/deploy/scripts/k3s-node-join.sh <SERVER_URL> <TOKEN>
+#   或: sudo bash k3s-node-join.sh --token-file=/tmp/k3s-token --server=10.0.0.10
 set -euo pipefail
 
 RED='\033[0;31m'

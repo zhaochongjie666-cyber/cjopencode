@@ -21,6 +21,20 @@ DRY_RUN=false
 PRUNE=false
 KUSTOMIZE=false
 
+# === 智能检测 manifests 路径 ===
+detect_path() {
+  # 标准 deployer 产物位置
+  for candidate in "./k8s" "./deploy/k8s" "./manifests" "./kubernetes" \
+                   "./k8s/overlays/prod" "./k8s/overlays/dev" \
+                   "./deploy/prod" "./deploy"; do
+    if [ -d "$candidate" ] || [ -f "$candidate/kustomization.yaml" ] || [ -f "$candidate/Chart.yaml" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # === 解析参数 ===
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -36,11 +50,16 @@ while [ $# -gt 0 ]; do
     PRUNE=true
     shift
     ;;
+  --auto|-a)
+    AUTO_DETECT=true
+    shift
+    ;;
   --help|-h)
-    echo "Usage: $0 [path] [--namespace=NAME] [--dry-run] [--prune]"
+    echo "Usage: $0 [path|--auto] [--namespace=NAME] [--dry-run] [--prune]"
     echo ""
     echo "Arguments:"
     echo "  path              Path to K8S manifests (default: ./k8s)"
+    echo "  --auto, -a        Auto-detect manifests path in standard locations"
     echo ""
     echo "Options:"
     echo "  --namespace=NAME  Set namespace (overrides manifests)"
@@ -54,6 +73,15 @@ while [ $# -gt 0 ]; do
     ;;
   esac
 done
+
+# === 智能检测路径（如果未显式指定） ===
+if [ "$PATH_DIR" = "./k8s" ] && [ ! -d "./k8s" ]; then
+  DETECTED=$(detect_path)
+  if [ -n "$DETECTED" ]; then
+    log "自动检测到 manifests 路径: $DETECTED"
+    PATH_DIR="$DETECTED"
+  fi
+fi
 
 # === 检查 kubectl ===
 command -v kubectl &>/dev/null || err "kubectl not installed"

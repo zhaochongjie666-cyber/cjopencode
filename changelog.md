@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-07-26 19:22:33 - 脚本智能化 + 重命名 + INDEX 索引页
+
+### 改进
+
+**重命名脚本（避免混淆）**：
+- `k3s-init.sh` → `k3s-cluster-init.sh`（生产 HA 集群 master 初始化）
+- `k3s-join.sh` → `k3s-node-join.sh`（worker/server 加入现有集群）
+- `k3s-dev-setup.sh` 保持不变（一键测试集群，与生产 init 区分）
+
+现在三个 K3S 脚本清晰分工：
+- `k3s-dev-setup.sh`：本地/CI 一键测试集群（含 k3d 模式）
+- `k3s-cluster-init.sh`：生产环境 master 初始化（含 HA）
+- `k3s-node-join.sh`：节点加入现有集群
+
+**脚本智能化**：
+- `env-setup.sh`：加 `detect_project()` 函数，自动从 `package.json`/`pyproject.toml`/`go.mod`/`Cargo.toml` 检测项目语言 + 包管理器（npm/pnpm/yarn/bun/uv/poetry/pipenv）+ Node.js/Python 版本（.nvmrc/.python-version/package.json engines）
+- `env-setup.sh --lang=auto` 默认值（自动检测），`--lang=all/node/python/go/rust` 手动指定
+- `env-setup.sh --path=DIR` 指定项目目录（默认 cwd）
+- `deploy-k8s.sh`：加 `detect_path()` 函数，自动在 `k8s/`/`deploy/k8s/`/`manifests/`/`kubernetes/`/`deploy/prod`/`deploy` 等标准位置查找 manifests
+- `deploy-k8s.sh --auto/-a`：显式触发智能检测
+
+**INDEX 索引页**：
+- `src/skills/deploy/INDEX.md`：~200 行，包含双能力概览、17 references 索引（含用途说明）、8 scripts 索引、4 个快速上手示例、决策流程图
+
+### 验证
+
+- `bash -n` 所有脚本语法检查通过
+- `env-setup.sh --path=/tmp/test-project` 在含 package.json/pyproject.toml/go.mod 的测试目录正确检测出 "node python go" + 各包管理器
+- `deploy-k8s.sh` 在无 `./k8s` 目录时自动查找 `deploy/k8s` 等其他位置
+
 ## 2026-07-26 19:04:07 - 扩展 deploy 为环境构建 + 部署生成双能力
 
 ### 定位升级

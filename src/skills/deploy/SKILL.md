@@ -154,7 +154,7 @@ work():
 ```
 1. 分析项目 + 集群规模
 2. 生成 K8S manifests -> k8s/ 目录（Deployment/Service/Ingress/PVC/ConfigMap/Secret）
-3. 配置 K3S 安装（如新集群） -> scripts/k3s-init.sh + k3s-join.sh
+3. 配置 K3S 安装（如新集群） -> scripts/k3s-cluster-init.sh + k3s-node-join.sh
 4. 配置内网 + Ingress -> Traefik (K3S 默认) + cert-manager (TLS)
 5. 配置持久化 -> local-path (默认) / Longhorn (分布式)
 6. 部署 -> scripts/deploy-k8s.sh (kubectl apply)

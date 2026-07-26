@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# k3s-init.sh - K3S master 节点初始化脚本
-# 用法: sudo bash skills/deploy/scripts/k3s-init.sh [--ha] [--lb=<IP_OR_DNS>]
+# k3s-cluster-init.sh - K3S master 节点初始化脚本
+# 用法: sudo bash skills/deploy/scripts/k3s-cluster-init.sh [--ha] [--lb=<IP_OR_DNS>]
 #
-# 单节点: sudo bash k3s-init.sh
-# HA master: sudo bash k3s-init.sh --ha --lb=10.0.0.10
+# 单节点: sudo bash k3s-cluster-init.sh
+# HA master: sudo bash k3s-cluster-init.sh --ha --lb=10.0.0.10
 set -euo pipefail
 
 RED='\033[0;31m'
@@ -163,7 +163,7 @@ if [ "$HA" = true ]; then
   echo ""
   echo "  curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"agent --server https://${LB_IP}:6443 --token ${NODE_TOKEN}\" sh -"
   echo ""
-  echo "TOKEN 已保存到 /tmp/k3s-token (用于 k3s-join.sh):"
+  echo "TOKEN 已保存到 /tmp/k3s-token (用于 k3s-node-join.sh):"
   echo "$NODE_TOKEN" | tee /tmp/k3s-token
   chmod 600 /tmp/k3s-token
 else
