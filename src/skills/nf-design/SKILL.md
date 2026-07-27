@@ -1,10 +1,9 @@
 ---
 name: nf-design
 description: >
-  Normal Flow 正向设计 skill。教 nf-designer subagent 怎么产出真实设计文档：
-  意图锚 intent.md、收敛决策 design.md、RXX 规则锚 rules.md、正向+兜底场景 scenarios.feature、
-  架构 architecture.md。核心是"正向和兜底都要设计" -- 只设计 happy path 不算完成。
-  被 nf-designer subagent 装载，产出 .nf/design/ 下的真实文件。
+  Normal Flow 正向设计 skill。nf-designer 装本 skill 跑 5 件设计产物到 .xdd/design/。
+  产物路径统一，RXX 编号项目级共享。
+  装本 skill 后，nf-designer 严格按本 skill 的产出清单 + Gate 标准执行。
 ---
 
 # nf-design · 正向设计方法论
@@ -13,17 +12,28 @@ description: >
 
 把用户意图固化成可被攻击阶段直接消费的设计链。设计是**冻结契约**，attack 阶段照着它验证，所以设计缺口会直接变成实现缺口。
 
-## 产出清单（写到 .nf/design/，括号内为 Gate 最小字节数）
+## 产出清单（写到 `.xdd/design/`，括号内为 Gate 最小字节数）
 
-```
-.nf/design/
-  intent.md            -- 意图锚：为什么做、目标、成功标准（>= 80 字节）
-  design.md            -- 收敛决策：用户旅程、端到端业务流程、取舍（>= 150 字节）
-  spec/
-    rules.md           -- 规则锚：R01..RNN，每条规则一个能力（>= 100 字节）
-    scenarios.feature  -- 场景：Gherkin，正向 + 兜底（>= 100 字节）
-  architecture.md      -- 架构：模块、端点、事件、数据存储、依赖（>= 150 字节）
-```
+| 产物 | 路径 | 字节阈值 | 关键标注 |
+|------|------|---------|---------|
+| intent.md | `.xdd/design/intent.md` | ≥ 80 | 「意图」「目标」 |
+| design.md | `.xdd/design/design.md` | ≥ 150 | 「Selected」 |
+| rules.md | `.xdd/design/spec/{Bxx-slug}/rules.md` | ≥ 200 | `R[0-9]{2}` ≥ 7 条 |
+| scenarios.feature | `.xdd/design/spec/{Bxx-slug}/scenarios.feature` | ≥ 500 | `@covers R[0-9]{2}` 每 RXX ≥ 1 |
+| architecture.md | `.xdd/design/architecture/{Bxx-slug}/architecture.md` | ≥ 200 | 端点 / 事件 / 数据 / 依赖 4 关键词 |
+
+**RXX 编号空间**：项目级共享（按 `Bxx-slug` 隔离，跨业务线引用必须带 `Bxx-RXX` 全名）。
+
+## Gate 5 条硬检查（按 architecture §5）
+
+1. **产物真实落盘**：`stat` 5 件产物返回真实文件
+2. **字节数达标**：5 件产物 `wc -c` ≥ 阈值（见上表）
+3. **关键 grep 命中**：
+   - rules.md 含 `R[0-9]{2}` ≥ 7 处
+   - scenarios.feature 含 `@covers R[0-9]{2}` ≥ 7 处
+   - architecture.md 含「端点 / 事件 / 数据 / 依赖」4 关键词
+4. **存根检测**：扫描「占位符」（如「TODO」/「待定」之类）
+5. **commit 追溯**：设计阶段无 commit（跳过）
 
 ## 怎么写
 
