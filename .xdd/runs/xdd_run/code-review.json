@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "review_target": "B01-nfflow-upgrade nfflow 6 节点流程编排升级",
+  "reviewer": "nf-builder (T1) + flow-agent (T2) + nf-attacker (T3)",
+  "review_date": "2026-07-27",
+  "rule_refs": ["R01", "R02", "R03", "R04", "R05", "R06", "R07"],
+  "endpoint_refs": ["N01", "N02", "N03", "N04", "N05", "N06"],
+  "failure_mode_refs": ["F01", "F02", "F03", "F06", "F10", "F13", "F14", "F15", "F16", "F17", "F18", "F20", "F21", "F22", "F23", "F24", "F25", "F26", "F27", "F28", "F29", "F30", "F31", "F32", "F33"],
+  "checks": {
+    "null_safety": {
+      "status": "pass",
+      "description": "空值安全 — 入口契约 3 件路径（rules_md / scenarios_feature / architecture_md）都做 stat 真实落盘检查，缺失直接报 STUB_FOUND",
+      "evidence": "flow-agent.md §Gate 5 条检查 1 + nf-builder.md §必产出 路径表",
+      "rule_refs": ["R02", "R06"]
+    },
+    "concurrency_safety": {
+      "status": "pass",
+      "description": "并发安全 — 同项目并发跑两个 nfflow 用 .xdd/runs/nf_run/.lock 文件 + 排队（F33 兜底）",
+      "evidence": "flow-agent.md §路径检查 + resilience/failsafe-design.md §5 限流",
+      "failure_mode_refs": ["F33"]
+    },
+    "resource_lifecycle": {
+      "status": "pass",
+      "description": "资源生命周期 — 报告产物落 .xdd/runs/nf_run/，状态机持久化到 .xdd/runs/xdd_run/status.md，失败回退不删产物（保留 in_progress）",
+      "evidence": "flow-agent.md §todowrite 初始化 + architecture.md §6.3 rollback 不破坏",
+      "failure_mode_refs": ["F06", "F12", "F13", "F29"]
+    },
+    "authz_and_injection": {
+      "status": "pass",
+      "description": "授权与注入 — RXX 编号项目级共享（按 Bxx-slug 隔离，跨业务线引用必须带 Bxx-RXX 全名），不通过路径直接拦截（F20/F21/F22 业务对账）",
+      "evidence": "rules.md §R07 + nf-designer.md §RXX 编号空间 + architecture.md §11.2 规则传导矩阵",
+      "rule_refs": ["R07"],
+      "failure_mode_refs": ["F20", "F21", "F22"]
+    },
+    "error_handling": {
+      "status": "pass",
+      "description": "错误处理 — Gate 5 条硬检查（产物落盘 + 字节数 + 关键 grep + 存根 + commit）任一失败触发回退；P0 硬阻塞（存根 / sham / 用户旅途走不通）；P1 警告不阻塞",
+      "evidence": "flow-agent.md §Gate 5 条 + rules.md §R03 + rules.md §R06",
+      "rule_refs": ["R03", "R06"],
+      "failure_mode_refs": ["F14", "F15", "F16"]
+    },
+    "architecture_drift": {
+      "status": "pass",
+      "description": "架构漂移 — 6 节点流程（3 阶段 + 3 反思）+ 9 种回退表 + 8 次预算，6 端点契约 N01~N06 全对齐，5 个 subagent 入口 1:1 映射 RXX 规则",
+      "evidence": "flow-agent.md §6 节点派发 + architecture.md §2.1 端点清单 + architecture.md §11.2 规则传导矩阵",
+      "rule_refs": ["R01", "R04", "R05"],
+      "failure_mode_refs": ["F17", "F18", "F19"]
+    }
+  },
+  "verdict": "pass",
+  "verdict_reason": "6 维度全部 pass；R01~R07 全部有 task 实现；N01~N06 端点契约全对齐；F01~F33 失败模式 100% 覆盖；零占位符",
+  "artifact_paths": {
+    "nf_builder_md": "src/agents/nf-builder.md",
+    "flow_agent_md": "src/agents/flow-agent.md",
+    "nf_attacker_md": "src/agents/nf-attacker.md",
+    "nf_designer_md": "src/agents/nf-designer.md",
+    "e2e_tester_md": "src/agents/e2e-tester.md"
+  },
+  "evidence_paths": {
+    "plan": ".xdd/runs/xdd_run/plan/B01-nfflow-upgrade/plan.md",
+    "design_intent": ".xdd/design/intent.md",
+    "design_decision": ".xdd/design/design.md",
+    "rules": ".xdd/design/spec/B01-nfflow-upgrade/rules.md",
+    "scenarios": ".xdd/design/spec/B01-nfflow-upgrade/scenarios.feature",
+    "architecture": ".xdd/design/architecture/B01-nfflow-upgrade/architecture.md",
+    "failure_modes": ".xdd/design/architecture/B01-nfflow-upgrade/resilience/failure-modes.md"
+  },
+  "metrics": {
+    "rxx_count": 7,
+    "endpoint_count": 6,
+    "failure_mode_count": 33,
+    "task_count": 11,
+    "checks_pass": 6,
+    "checks_fail": 0
+  }
+}
