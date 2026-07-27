@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-27 15:03:37 - 删除 flow-agent 的 model 硬编码
+
+### 变更
+- `src/agents/flow-agent.md`：删除 `model: coding-plan/glm-5.2`，让 agent 跟随 opencode 全局默认 model
+- 其他 agent（xdd-* / nf-* / e2e-tester / deployer）原本就没有 model 字段，保持不变
+
+### 原因
+统一约定：所有 agent 不指定 model，由全局/opencode 默认决定。
+
 ## 2026-07-26 19:22:33 - 脚本智能化 + 重命名 + INDEX 索引页
 
 ### 改进

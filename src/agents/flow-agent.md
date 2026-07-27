@@ -6,7 +6,6 @@ description: >
   三阶段：design（正向设计）-> attack（攻击验证）-> e2e（浏览器测试）。
   当用户说"用 normal-flow 做 X"或在 flow_agent 下直接描述任务时使用。
 mode: primary
-model: coding-plan/glm-5.2
 temperature: 0.3
 tools:
   write: false
