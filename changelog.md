@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-07-27 19:28:00 - nfflow 升级全链推送完成（14 commit 到 main）
+
+### 本轮 push 总结
+
+- **commit 5ad8588** 推送 33 个文件 / 5714 行（设计层 + 实施层产物 + changelog 总览）
+- 远端 `main` 已更新到 `9d4f1d6..5ad8588`
+- **总 commit 数 14**：
+  - `5ad8588` 设计层 + changelog（本次）
+  - `b3982f0` plan 实施完成
+  - `0835059` changelog
+  - `3a627db` fix e2e-tester
+  - `f2b6ade` code-review.json
+  - `fc47bca` nf-attack SKILL
+  - `be79dec` nf-attacker stage
+  - `f608069` flow-agent 重写
+  - `04e5b7a` e2e-test SKILL
+  - `e9b7ef3` nf-design SKILL
+  - `4ee36af` e2e-tester 路径
+  - `2107b01` nf-designer 路径
+  - `2fca16a` nf-builder 新增
+  - `9d4f1d6` 删除 flow-agent model
+
+### 全链状态
+- 设计层 5 节点 ✅ + 桥接·计划 ✅ + 代码·实现 ✅ + changelog ✅
+- 待跑：代码·验证（xdd-verify，下次启动 opencode 真实跑一个 nfflow 任务验证 6 节点流程）
+
 ## 2026-07-27 19:26:40 - nfflow 升级全链完成（设计 + 实施 + 自审）
 
 ### 全链总览
