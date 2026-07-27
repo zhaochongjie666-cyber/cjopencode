@@ -44,7 +44,7 @@ flow_agent 派你时，prompt 必含：
 
 ## 前置：先读设计
 
-读 `.xdd/design/` 下的全部产物（**不是** `.nf/design/`）：
+读 `.xdd/design/` 下的全部产物（项目级设计目录）：
 - `spec/{Bxx-slug}/scenarios.feature` -- Gherkin 场景（你要测的就是这些）
 - `design.md` -- 用户旅途（你要走的路线）
 - `architecture/{Bxx-slug}/architecture.md` -- 端点/端口/模块（找到应用 URL）
@@ -66,7 +66,7 @@ flow_agent 派你时，prompt 必含：
 ## 你要做的事
 
 1. 装 e2e-test skill
-2. 读设计文档（从 `.xdd/design/`，**不**从 `.nf/design/`），提取场景和用户旅途
+2. 读设计文档（从 `.xdd/design/` 项目级设计目录），提取场景和用户旅途
 3. 确认应用在运行（curl 检查，没跑就启动）
 4. 安装 Playwright（如未安装）
 5. 编写 E2E 测试脚本（每个场景一个 test，含正向 + 兜底）
