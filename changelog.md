@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-07-27 19:26:40 - nfflow 升级全链完成（设计 + 实施 + 自审）
+
+### 全链总览
+
+| 阶段 | 产物 | 状态 |
+|------|------|------|
+| 设计·理解 | intent.md + design.md + 3 篇 notes | ✅ |
+| 设计·规则 | R01~R07 + 7 Feature / 28 Scenario | ✅ |
+| 设计·架构 | architecture.md（17 章 + N01~N06 + §5 Gate）+ flow.mermaid（mmdc PASS） | ✅ |
+| 设计·韧性 | failure-modes F01~F33 + failsafe-design 33/33 + chaos 19 Scenario + runbook 33 SOP | ✅ |
+| 桥接·计划 | plan.md（1922 行 / 11 task / 67 TDD step） | ✅ |
+| 代码·实现 | 5 agent（1 新 + 4 改）+ 3 skill + code-review.json（verdict=pass） | ✅ |
+| 自检验收 | 12 commit + RXX grep 12 命中 + sanity check 全过 | ✅ |
+
+### 12 commit 历史（nfflow 升级相关）
+
+```
+b3982f0 docs(plan): B01-nfflow-upgrade 实施 plan 11 task 全部完成 (R01 R07)
+0835059 docs(changelog): nfflow 升级实施完成条目 (R07)
+3a627db fix(agent): T10 sanity check 微调 e2e-tester 反向说明 (R01 R07)
+f2b6ade feat(review): 写 nfflow 升级 6 维度 code-review.json verdict=pass (R02 R06)
+fc47bca feat(skill): nf-attack 加 stage 参数化 + 5 段结构 + P0/P1/P2 分级 (R03)
+be79dec feat(agent): nf-attacker 加 stage 参数化 + 续接策略显式化 (R03 R05)
+f608069 feat(agent): 重写 flow-agent 为 6 节点 + 9 回退 + 8 预算 (R01 R04 R05 R06)
+04e5b7a feat(skill): e2e-test 产物路径 .nf/runs/ → .xdd/runs/nf_run/ (R01 R07)
+e9b7ef3 feat(skill): nf-design 产物路径 .nf/design/ → .xdd/design/ (R01 R07)
+4ee36af feat(agent): e2e-tester 产物路径 .nf/runs/ → .xdd/runs/nf_run/ (R01 R07)
+2107b01 feat(agent): nf-designer 产物路径 .nf/design/ → .xdd/design/ (R01 R07)
+2fca16a feat(agent): 新增 nf-builder subagent 装 xdd-execute + xdd-cleanup 跑 TDD (R02 R06)
+```
+
+### 关键指标（code-review.json 6 维度）
+
+- 空值安全：pass（路径 stat 真实落盘检查）
+- 并发安全：pass（`.xdd/runs/nf_run/.lock` 排队）
+- 资源生命周期：pass（产物落点 + 状态机持久化 + rollback 不删产物）
+- 授权与注入：pass（RXX 编号 Bxx-slug 隔离 + 业务对账）
+- 错误处理：pass（Gate 5 条独立验证 + 9 种回退）
+- 架构漂移：pass（agent 命名独立 + 目录约定统一）
+- **verdict: pass** + 25 failure mode refs + 7 RXX + 6 endpoints
+
+### 反 sham 自检
+
+- `grep -E '^model:' src/agents/*.md` = 0 命中
+- `@implements R[0-9]{2}` 在 src/agents/*.md = **12 命中**（≥ 7 Gate）
+- `task_id` 命中 5 文件 + `stage` 命中 2 文件
+- 0 占位符 + 0 旧路径 `.nf/(design|runs)/`
+- 全测试通过（无 backend 测试，本轮纯声明式 markdown 配置）
+
+### 下一步候选
+
+1. **xdd-verify**（推荐）：跑真实验证（启动 opencode 加载新 agent / 跑一遍 nfflow 真实任务 / 检查回退路径）
+2. **commit 设计层产物**：`.xdd/` 目录（13 个设计文件 + plan.md + code-review.json）暂未 git add
+3. **推送到远端**：本轮 12 commit 还在本地
+
 ## 2026-07-27 19:24:46 - nfflow 升级实施完成（B01-nfflow-upgrade）
 
 ### 实施产物（10 个文件 + 1 个 plan = 11 处改动）

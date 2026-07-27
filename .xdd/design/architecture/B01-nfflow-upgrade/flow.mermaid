@@ -1,0 +1,97 @@
+%% nfflow 6 节点流程编排 — flow.mermaid
+%% 6 节点 = 3 阶段（explore-design / build / acceptance）+ 3 反思（reflect-design / reflect-build / reflect-acceptance）
+%% 每节点标注：派谁 / 装什么 skill / 产什么 / Gate
+%% 9 种回退箭头 + 8 次总预算
+
+flowchart TD
+    Start([用户 prompt]) --> S1
+
+    %% ============ 阶段 1 ============
+    subgraph "阶段1 · explore-design"
+        S1["阶段1: explore-design<br/><b>派 nf-designer</b><br/>装 skill: nf-design<br/>入口: N01<br/>产物: 5 件设计产物<br/>├─ .xdd/design/intent.md (≥80)<br/>├─ .xdd/design/design.md (≥150)<br/>├─ .xdd/design/spec/{Bxx-slug}/rules.md (≥200)<br/>├─ .xdd/design/spec/{Bxx-slug}/scenarios.feature (≥500)<br/>└─ .xdd/design/architecture/{Bxx-slug}/architecture.md (≥200)<br/><b>Gate 5 条</b>: 产物落盘+字节数+grep+存根+commit"]
+    end
+
+    %% ============ 反思 #1 ============
+    subgraph "反思#1 · reflect-design"
+        R1["反思#1: reflect-design<br/><b>派 nf-attacker (stage=design)</b><br/>装 skill: nf-attack<br/>入口: N02<br/>跑 5 段方法：① 产物状态 ② 正向验证 ③ 兜底攻击 ④ 反 sham ⑤ 问题清单<br/>产物: .xdd/runs/nf_run/reflect-attack-design-report.md (≥1000)<br/><b>Gate</b>: P0=0 才进下一阶段 / P1=0 才算完成"]
+    end
+
+    %% ============ 阶段 2 ============
+    subgraph "阶段2 · build"
+        S2["阶段2: build<br/><b>派 nf-builder</b><br/>装 skill: xdd-execute + xdd-cleanup<br/>入口: N03<br/>跑 TDD 循环：test → impl → refactor → commit<br/>产物: 代码 @implements RXX + tests/ +<br/>├─ .xdd/runs/nf_run/build-report.md (≥1000)<br/>└─ .xdd/runs/nf_run/code-review.json (6 维度 + verdict=pass)<br/><b>Gate</b>: no-stub-check 零命中 + 全测试 PASS + @implements RXX ≥7"]
+    end
+
+    %% ============ 反思 #2 ============
+    subgraph "反思#2 · reflect-build"
+        R2["反思#2: reflect-build<br/><b>派 nf-attacker (stage=build, task_id 续接反思#1)</b><br/>装 skill: nf-attack<br/>入口: N04<br/>前序 P0 列表显式传入<br/>跑 5 段方法<br/>产物: .xdd/runs/nf_run/reflect-attack-build-report.md (≥1000)<br/><b>Gate</b>: P0=0 / P1=0 + 验证前序 P0 已修"]
+    end
+
+    %% ============ 阶段 3 ============
+    subgraph "阶段3 · acceptance"
+        S3["阶段3: acceptance<br/><b>派 e2e-tester</b><br/>装 skill: e2e-test<br/>入口: N05<br/>跑用户旅途 + 截图<br/>产物:<br/>├─ .xdd/runs/nf_run/e2e-report.md (≥1000)<br/>└─ .xdd/runs/nf_run/screenshots/*.png (≥4 张, 每张 ≥5KB)<br/><b>Gate</b>: 用户旅途走通 + 截图齐"]
+    end
+
+    %% ============ 反思 #3 ============
+    subgraph "反思#3 · reflect-acceptance"
+        R3["反思#3: reflect-acceptance<br/><b>派 nf-attacker (stage=acceptance, task_id 续接反思#2)</b><br/>装 skill: nf-attack<br/>入口: N06<br/>前序 P0 列表显式传入<br/>跑 5 段方法<br/>产物: .xdd/runs/nf_run/reflect-attack-acceptance-report.md (≥1000)<br/><b>Gate</b>: P0=0 / P1=0 + 验证前序 P0 已修"]
+    end
+
+    %% ============ 流程推进箭头 ============
+    S1 ==>|"Gate 5 条 pass"| R1
+    R1 ==>|"P0=0 / P1=0"| S2
+    S2 ==>|"Gate 5 条 pass"| R2
+    R2 ==>|"P0=0 / P1=0 + 验证前序 P0"| S3
+    S3 ==>|"Gate 5 条 pass"| R3
+    R3 ==>|"P0=0 / P1=0 + 验证前序 P0"| Done
+
+    Done([流程完成<br/>6 节点全部 done_clean])
+
+    %% ============ 9 种回退箭头 ============
+    %% case 1: 反思#1 P0 → 阶段1
+    R1 -.->|"⬅ 回退 [case 1]<br/>反思#1 检测 P0 根因=阶段1 设计<br/>staging_counter[stage1] += 1"| S1
+
+    %% case 2: 阶段2 反推设计 → 阶段1
+    S2 -.->|"⬅ 回退 [case 2]<br/>阶段2 运行发现设计缺陷<br/>staging_counter[stage1] += 1"| S1
+
+    %% case 3: 反思#2 检测设计缺陷 → 阶段1
+    R2 -.->|"⬅ 回退 [case 3]<br/>反思#2 检测 P0 根因=阶段1 设计缺陷<br/>staging_counter[stage1] += 1"| S1
+
+    %% case 4: 反思#2 检测实现 bug → 阶段2
+    R2 -.->|"⬅ 回退 [case 4]<br/>反思#2 检测 P0 根因=阶段2 实现 bug<br/>staging_counter[stage2] += 1"| S2
+
+    %% case 5: 阶段3 反推设计 → 阶段1
+    S3 -.->|"⬅ 回退 [case 5]<br/>阶段3 运行发现设计缺陷<br/>staging_counter[stage1] += 1"| S1
+
+    %% case 6: 阶段3 反推实现 → 阶段2
+    S3 -.->|"⬅ 回退 [case 6]<br/>阶段3 运行发现实现 bug<br/>staging_counter[stage2] += 1"| S2
+
+    %% case 7: 反思#3 反推设计 → 阶段1
+    R3 -.->|"⬅ 回退 [case 7]<br/>反思#3 检测 P0 根因=阶段1 设计缺陷<br/>staging_counter[stage1] += 1"| S1
+
+    %% case 8: 反思#3 反推实现 → 阶段2
+    R3 -.->|"⬅ 回退 [case 8]<br/>反思#3 检测 P0 根因=阶段2 实现 bug<br/>staging_counter[stage2] += 1"| S2
+
+    %% case 9: 反思#3 检测验收漏测 → 阶段3
+    R3 -.->|"⬅ 回退 [case 9]<br/>反思#3 检测 P0 根因=阶段3 验收漏测<br/>staging_counter[stage3] += 1"| S3
+
+    %% ============ 预算耗尽 fallback ============
+    Question{{"3 次回退同一阶段<br/>或总预算 8 次用完"}}
+    S1 -.-> Question
+    R1 -.-> Question
+    S2 -.-> Question
+    R2 -.-> Question
+    S3 -.-> Question
+    R3 -.-> Question
+    Question ==>|"flow-agent<br/>question 工具"| User(("用户介入<br/>流程暂停/继续"))
+
+    %% ============ 样式 ============
+    style S1 fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style S2 fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style S3 fill:#e1f5ff,stroke:#0066cc,stroke-width:2px
+    style R1 fill:#fff4e1,stroke:#cc6600,stroke-width:2px
+    style R2 fill:#fff4e1,stroke:#cc6600,stroke-width:2px
+    style R3 fill:#fff4e1,stroke:#cc6600,stroke-width:2px
+    style Done fill:#d4edda,stroke:#28a745,stroke-width:3px
+    style Question fill:#f8d7da,stroke:#dc3545,stroke-width:2px
+    style User fill:#f8d7da,stroke:#dc3545,stroke-width:3px
+    style Start fill:#d4edda,stroke:#28a745,stroke-width:2px
