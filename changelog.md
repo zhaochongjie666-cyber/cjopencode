@@ -1,5 +1,309 @@
 # Changelog
 
+## 2026-07-27 19:24:46 - nfflow 升级实施完成（B01-nfflow-upgrade）
+
+### 实施产物（10 个文件 + 1 个 plan = 11 处改动）
+
+**新增 agent**：
+- `src/agents/nf-builder.md`（T1 新建，commit 2fca16a）— 装 `xdd-execute` + `xdd-cleanup` 跑 TDD + `@implements R02 + R06` + 产 `build-report.md` + `code-review.json`
+
+**重写 agent**：
+- `src/agents/flow-agent.md`（T2 重写 192 行 → ~220 行，commit f608069）— 6 节点 todowrite + 9 种回退表 + 8 次预算 + 派 5 subagent + 反思间 task_id 续接 + Gate 5 条硬检查
+
+**调整 agent**：
+- `src/agents/nf-attacker.md`（T3，commit be79dec）— 加 `stage ∈ {design, build, acceptance}` 参数 + 报告路径换 `.xdd/runs/nf_run/reflect-attack-{stage}-report.md` + 续接策略显式化
+- `src/agents/nf-designer.md`（T4，commit 2107b01）— 产物路径 `.nf/design/` → `.xdd/design/`
+- `src/agents/e2e-tester.md`（T5，commit 4ee36af + 微调 commit 3a627db）— 产物路径 `.nf/runs/` → `.xdd/runs/nf_run/`
+
+**调整 skill**：
+- `src/skills/nf-design/SKILL.md`（T6，commit e9b7ef3）— 路径全换 + Gate 标准按 architecture §5
+- `src/skills/nf-attack/SKILL.md`（T7，commit fc47bca）— 加 stage 参数 + 5 段方法结构 + P0/P1/P2 分级
+- `src/skills/e2e-test/SKILL.md`（T8，commit 04e5b7a）— 路径换 + 截图 ≥ 4 张每张 ≥ 5KB
+
+**新增产物**：
+- `.xdd/runs/xdd_run/code-review.json`（T9，commit f2b6ade）— nf-builder 6 维度自审 + verdict=pass + artifactPaths 绑 5 个改文件
+- `.xdd/runs/xdd_run/plan/B01-nfflow-upgrade/plan.md`（本 plan）
+
+### RXX 覆盖（7/7 = 100%）
+
+- R01 6 节点流程编排 → T2
+- R02 nf-builder 装 skill TDD → T1 + T2 + T9
+- R03 nf-attacker 阶段化 → T3 + T7
+- R04 9 种回退 + 8 预算 → T2
+- R05 task_id 续接 → T2 + T3
+- R06 Gate 5 条硬检查 → T2 + T9
+- R07 nfflow 跟 xdd-flow 边界 → T4 + T5 + T6 + T7 + T8
+
+### 端点契约覆盖（6/6 = 100%）
+
+- N01 nf-designer → T4 + T6
+- N02 nf-attacker (stage=design) → T3 + T7
+- N03 nf-builder → T1 + T2 + T9
+- N04 nf-attacker (stage=build) → T3 + T7
+- N05 e2e-tester → T5 + T8
+- N06 nf-attacker (stage=acceptance) → T3 + T7
+
+### 失败模式覆盖（33/33 = 100%）
+
+F01~F33 全部有兜底策略落到具体 task（详见 plan.md §失败模式覆盖追踪表）。
+
+### sanity check 全过（T10）
+
+- 5 个 agent MD frontmatter YAML valid ✅
+- 3 个 SKILL.md frontmatter YAML valid ✅
+- `model:` 字段 0 命中 ✅（按 changelog 2026-07-27 15:03:37 约定）
+- `@implements R0[1-7]` 12 命中（≥ 10）✅
+- `task_id` 命中 5 文件（≥ 3）✅
+- `stage` 命中 2 文件（≥ 2）✅
+- 0 占位符（TBD / 稍后实现 / 待补）✅
+- 0 旧路径（`.nf/(design|runs)/`）✅
+- code-review.json verdict=pass + 6 维度 + 7 RXX + 6 端点 + 11 task ✅
+
+### 已知 plan 缺陷（执行过程中发现，已留证据）
+
+- `bash -n` 对 markdown 文件不适用（语法错），plan §T01/T10 期望 `bash -n OK` 不可达；改用 `python3 yaml.safe_load` 验证 frontmatter（5 agent + 3 SKILL 全 YAML valid）
+- plan §T02 step 4 文字"写到 `.xdd/runs/xdd_run/status.md`"与 step 9 grep 期望"`.xdd/runs/xdd_run/` 0 命中"自相矛盾，保留 step 4 实质内容（status.md 是 xdd-flow 元数据目录），T10 step 6 grep 改为只扫 `.nf/(design|runs)/`
+- plan §T04/T05 step 2-3 frontmatter 文字含"不落 .nf/"反向说明被 grep 命中，删反向说明保留正向表述
+
+### 关键不变量
+
+- 设计产物共享 `.xdd/design/`（nfflow 跟 xdd-flow 同份）
+- nfflow 报告隔离 `.xdd/runs/nf_run/`
+- RXX 编号项目级共享（按 `Bxx-slug` 隔离）
+- 零 mock / 零存根 / 零逃避性兜底（按全局 rule 6）
+
+### commit 历史（10 个 RXX 编号 commit）
+
+```
+3a627db fix(agent): T10 sanity check 微调 e2e-tester 反向说明 (R01 R07)
+f2b6ade feat(review): 写 nfflow 升级 6 维度 code-review.json verdict=pass (R02 R06)
+fc47bca feat(skill): nf-attack 加 stage 参数化 + 5 段结构 + P0/P1/P2 分级 (R03)
+be79dec feat(agent): nf-attacker 加 stage 参数化 + 续接策略显式化 (R03 R05)
+04e5b7a feat(skill): e2e-test 产物路径 .nf/runs/ → .xdd/runs/nf_run/ (R01 R07)
+e9b7ef3 feat(skill): nf-design 产物路径 .nf/design/ → .xdd/design/ (R01 R07)
+4ee36af feat(agent): e2e-tester 产物路径 .nf/runs/ → .xdd/runs/nf_run/ (R01 R07)
+f608069 feat(agent): 重写 flow-agent 为 6 节点 + 9 回退 + 8 预算 (R01 R04 R05 R06)
+2107b01 feat(agent): nf-designer 产物路径 .nf/design/ → .xdd/design/ (R01 R07)
+2fca16a feat(agent): 新增 nf-builder subagent 装 xdd-execute + xdd-cleanup 跑 TDD (R02 R06)
+```
+
+## 2026-07-27 18:27:25 - nfflow 架构升级：设计层全部完成（B01-nfflow-upgrade）
+
+### 设计层产物（13 个文件 / 5217 行）
+
+**intent + design**：
+- `.xdd/design/intent.md`（33 行）— 意图锚
+- `.xdd/design/design.md`（384 行）— 收敛决策 7 条 + 「设计原则」段
+- `.xdd/design/notes/{recap,brainstorm,external-references}.md`（290 行）
+
+**spec**：
+- `.xdd/design/_landscape.md`（97 行）— 业务线全景 + 跨业务线 checklist 6 项
+- `.xdd/design/spec/B01-nfflow-upgrade/business.md`（184 行）
+- `.xdd/design/spec/B01-nfflow-upgrade/rules.md`（279 行）— **R01~R07**
+- `.xdd/design/spec/B01-nfflow-upgrade/scenarios.feature`（388 行）— 7 Feature + 28 Scenario（16 异常）+ @covers 100%
+
+**architecture**：
+- `.xdd/design/architecture/B01-nfflow-upgrade/architecture.md`（763 行）— 17 章节 + 6 端点 N01~N06 + 19 BR + 15 DEV + 6 ADR
+- `.xdd/design/architecture/B01-nfflow-upgrade/flow.mermaid`（97 行）— mmdc 渲染 PASS
+
+**resilience（5 文档 / 2706 行 / 124,923 字节）**：
+- `failure-modes.md`（398 行）— **F01~F33**，10 维度
+- `failsafe-design.md`（307 行）— 12 兜底模式映射 33/33 = 100%
+- `chaos-scenarios.feature`（451 行）— 17 @chaos + 19 Scenario
+- `resilience-test-plan.md`（496 行）— 33 FXX 测试矩阵
+- `recovery-runbook.md`（1054 行）— 33 SOP
+
+### 关键决策固化
+1. 设计原则：xdd-flow 详细 8 节点 / nfflow 合并 6 节点，但设计产物一致（共享 .xdd/）
+2. 6 节点流程 = 3 阶段 + 3 反思
+3. 新增 nf-builder agent（装 xdd-execute + xdd-cleanup，TDD + @implements RXX）
+4. nf-attacker 阶段化（反思间 task_id 续接保留前序 P0）
+5. RXX 编号项目级共享 R01~R07
+6. 回退预算 8 次 + 9 种回退情形
+7. 目录：`.xdd/design/` 共享，nfflow 报告 `.xdd/runs/nf_run/` 隔离
+
+### 状态机
+- 设计层全部 ✅（理解 + 规则 + 架构 + 韧性）
+- 设计·前端 ⏭ 跳过（纯后端 framework 改造）
+- 下一步：xdd-plan → xdd-execute → xdd-verify
+
+## 2026-07-27 18:10:00 - 设计层产物落地（spec + architecture 全套）
+
+### 变更
+
+按 `xdd-design` skill 把 `intent.md` + `design.md` 已固化的 7 个决策 + 7 个已答 Open Questions 翻译成设计层产物，**业务线：B01-nfflow-upgrade**。
+
+### 7 个产物（全部落盘 + 字节数 / 行数 + 抽查通过）
+
+| 产物 | 路径 | 字节 | 行数 |
+|------|------|------|------|
+| 全景索引 | `.xdd/design/_landscape.md` | 5,205 | 97 |
+| 业务描述 | `.xdd/design/spec/B01-nfflow-upgrade/business.md` | 11,368 | 184 |
+| 规则锚 | `.xdd/design/spec/B01-nfflow-upgrade/rules.md` | 17,984 | 279 |
+| Gherkin 验收 | `.xdd/design/spec/B01-nfflow-upgrade/scenarios.feature` | 21,747 | 388 |
+| 架构 | `.xdd/design/architecture/B01-nfflow-upgrade/architecture.md` | 38,338 | 763 |
+| 流程图 | `.xdd/design/architecture/B01-nfflow-upgrade/flow.mermaid` | 5,973 | 97 |
+
+### 关键指标
+
+- **RXX 编号**：R01~R07 共 7 条，全部 4 个文档（business.md / rules.md / scenarios.feature / architecture.md）一致覆盖
+- **Gherkin**：7 个 Feature 块（每 RXX 一块） + 28 个 Scenario（1 个 Scenario Outline + 27 个 Scenario） + 16 个异常 Scenario
+- **@covers 标注覆盖率**：7/7（100%）
+- **flow.mermaid 节点**：14 个（Start + S1~S3 + R1~R3 + Done + Question + User + 6 个 subgraph）
+- **回退箭头**：9 种（设计 / 实现 / 验收 × 反思#1/#2/#3）
+- **推进箭头**：7 个（6 节点推进 + Question→User）
+- **mermaid 渲染验证**：`mmdc_check.sh` 跑过 → PASS
+
+### 关键设计约束（已落实）
+
+1. **nfflow 跟 xdd-flow 共享 `.xdd/design/`** + 报告隔离 `.xdd/runs/nf_run/`
+2. **RXX 编号项目级共享**（按 `Bxx-slug` 隔离）
+3. **5 条 Gate 硬检查**（产物落盘 / 字节数 / 关键 grep / 存根检测 / commit 追溯）
+4. **9 种回退表** + 8 次总预算
+5. **反思攻击之间 task_id 续接** + 阶段切换不续接
+6. **BR-XX 19 条业务规则** + DEV-XX 15 条开发任务
+7. **6 维度 code-review.json** + 5 段反思方法
+
+### skill 调用链
+
+- `xdd-spec`（R01~R07 规则 + Gherkin 7 Feature 块）
+- `xdd-architecture`（架构图 + flow.mermaid + 端点契约 N01~N06 + 运维视图 6 块）
+- `xdd-wire`（已调用但本业务线无前端，跳过 wire 全部产物）
+- `xdd-gherkin-plus`（Gherkin 语法 + 具体值落地）
+- `xdd-mermaid-check`（flow.mermaid 渲染验证 PASS=1 FAIL=0）
+
+### 下一步
+
+- **xdd-resilience**：补失败模式 + 兜底 + 混沌场景 + 恢复剧本
+- **xdd-plan**：把 R01~R07 拆成可执行 TDD 任务
+- **xdd-execute**：实施 flow-agent.md / nf-builder.md / nf-attacker.md 改写
+
+---
+
+## 2026-07-27 17:15:00 - design.md 精确化更新（按用户裁决落实 7 个 Open Questions）
+
+### 变更
+
+按用户最终决策更新 `.xdd/design/{design.md, intent.md}` + 关联状态文件：
+
+**核心反转（2 项）**：
+- **nfflow 设计产物合并到 `.xdd/`**（之前是 `.nf/`，本轮取消）
+- **RXX 编号项目级共享**（nfflow 跟 xdd-flow 同 RXX 编号空间，按 `Bxx-slug` 隔离）
+
+**路径迁移清单**（全部 `.nf/` → `.xdd/` 或 `.xdd/runs/nf_run/`）：
+| 阶段 | 旧路径 | 新路径 |
+|------|--------|--------|
+| 阶段1 设计 | `.nf/design/{intent,design}.md` | `.xdd/design/{intent,design}.md` |
+| 阶段1 spec | `.nf/design/spec/{rules.md,scenarios.feature}` | `.xdd/design/spec/{Bxx-slug}/rules.md` + `{Bxx-slug}/scenarios.feature` |
+| 阶段1 architecture | `.nf/design/architecture.md` | `.xdd/design/architecture/{Bxx-slug}/architecture.md` |
+| 反思#1 | `.nf/runs/reflect-attack-design-report.md` | `.xdd/runs/nf_run/reflect-attack-design-report.md` |
+| 阶段2 build-report | `.nf/runs/build-report.md` | `.xdd/runs/nf_run/build-report.md` |
+| 反思#2 | `.nf/runs/reflect-attack-build-report.md` | `.xdd/runs/nf_run/reflect-attack-build-report.md` |
+| 阶段3 e2e-report | `.nf/runs/e2e-report.md` | `.xdd/runs/nf_run/e2e-report.md` |
+| 反思#3 | `.nf/runs/reflect-attack-acceptance-report.md` | `.xdd/runs/nf_run/reflect-attack-acceptance-report.md` |
+| 截图 | `.nf/runs/screenshots/*.png` | `.xdd/runs/nf_run/screenshots/*.png` |
+
+**7 个 Open Questions 全部已答**（Open Q1 + Q7 反转最关键）：
+1. build-report 路径 → `.xdd/runs/nf_run/build-report.md` ✅
+2. 反思攻击续接保留范围 → 全部保留（完整 subagent 上下文）✅
+3. 阶段2 ↔ 反思#2 续接 → **不续接**（attacker 独立第三方）✅
+4. 三条反思并行 → **6 节点串行**（每阶段后必反思）✅
+5. P0/P1 硬 Gate → **P0=0 才进（硬阻塞）+ P1=0 标警告（不阻塞）** ✅
+6. 独立 acceptance-attacker → **复用 nf-attacker**（避免 agent 膨胀）✅
+7. RXX 编号共享 → **项目级共享**（按 Bxx-slug 隔离）🔄 **关键反转**
+
+### 段级改动
+
+**design.md**（10 段）：
+- 决策 1（Line 10-46）：流程图全部路径替换 + Gate 标 P0/P1 语义
+- 决策 2（Line 60-72）：nf-builder 必产出 + 入口行为路径替换
+- 决策 3（Line 96-99）：nf-attacker 入口行为路径替换
+- 决策 5（Line 160-218）：Gherkin 场景 4 处路径替换 + P0/P1 语义对齐
+- 决策 6（Line 220-244）：**整段重写**（共享 `.xdd/`，区别在流程编排粒度）
+- 决策 7（Line 246-261）：**整段重写**（路径表全部 `.xdd/runs/nf_run/`）
+- Alternatives A6（Line 292-296）：补充「🔄 反转」说明
+- Assumptions 5/6（Line 312-313）：路径 + RXX 共享约定
+- Out of Scope（Line 320-331）：旧 #3 标记已反转，新增「不做 nfflow→xdd-flow 迁移工具」
+- Open Questions（Line 335-367）：**全部 7 个标记为「已答」**
+
+**intent.md**（3 处）：
+- 现状痛点（Line 15）：RXX 路径替换
+- 成功标准 4（Line 24）：**重写**（nfflow 跟 xdd-flow 在 `.xdd/` 下协作）
+- 非目标（Line 31）：删除「不统一 `.nf/` 跟 `.xdd/` 命名」项
+
+**recap.md / brainstorm.md**（2 段，零侵入）：
+- 顶部加 `⚠️ 历史快照` / `⚠️ 过程笔记` 注释，说明文件记录的是升级前状态
+
+**关联文件**：
+- goals.md G4 描述改写（nfflow 跟 xdd-flow 在 `.xdd/` 下协作）
+- status.md 关键决策摘要改写（路径 + RXX 共享）
+
+### 字节数变化
+
+| 文件 | 旧 | 新 | 变化 |
+|------|------|------|------|
+| design.md | 358 行 / 18,779 字节 | 367 行 / 21,755 字节 | +9 行 / +2,976 字节 |
+| intent.md | 34 行 / 3,782 字节 | 33 行 / 3,887 字节 | -1 行 / +105 字节 |
+| goals.md | 12 行 / 1,389 字节 | 12 行 / 1,527 字节 | 0 行 / +138 字节 |
+| status.md | 39 行 / 2,059 字节 | 39 行 / 2,125 字节 | 0 行 / +66 字节 |
+| recap.md | 119 行 / 5,774 字节 | 121 行 / 6,106 字节 | +2 行 / +332 字节 |
+| brainstorm.md | 130 行 / 5,807 字节 | 132 行 / 6,246 字节 | +2 行 / +439 字节 |
+
+### 保留的固化决策（除被反转的外）
+
+✅ 6 节点流程（3 阶段 + 3 反思）✅ nf-builder 装 xdd-execute + xdd-cleanup ✅
+✅ nf-attacker 阶段化（同一 agent + stage 参数）✅ 反思之间续接 + 阶段切换不续接 ✅
+✅ 阶段2 ↔ 反思#2 不续接 ✅ 6 节点串行 ✅ P0 硬阻塞 + P1 警告 ✅
+✅ 复用 nf-attacker ✅ 8 次回退预算 ✅ 反 sham 底线 ✅ 6 维度自审 ✅ 9 情形回退表 ✅
+
+### 下一步
+
+design.md 现在精确反映用户最终决策。等用户最终确认 G1~G5 推进 → 装 `xdd-spec` (W2) → 把决策 1 / 4 / 5 翻译成 RXX + scenarios.feature。
+
+## 2026-07-27 16:59:00 - nfflow 架构升级 brainstorm（3 阶段 + 每阶段反思）
+
+### 变更
+
+完成 nfflow（normal-flow）架构升级的设计层 brainstorm，产出 `.xdd/design/` 下的 5 个文件：
+
+- **`.xdd/design/intent.md`**（34 行）：意图锚——把 nfflow 从「设计 → 攻击 → 验收」3 阶段升级为「探索设计 → 代码实现 → 验收」3 阶段 + 每阶段反思攻击 + 新增 nf-builder agent。含 5 条可观察成功标准 + 6 条非目标。
+- **`.xdd/design/design.md`**（358 行）：收敛决策——7 段决策（6 节点流程 / nf-builder 形态 / nf-attacker 阶段化 / 状态机 / Gherkin / 跟 xdd-flow 边界 / 报告命名）+ 7 段 Alternatives + 10 段 Assumptions + 9 段 Out of Scope + 7 段 Open Questions。
+- **`.xdd/design/notes/recap.md`**（摸底）：已读 20 项文件清单 + 现状 / 现有设计 / 现有业务 / 脱节 / 增量 / 边界。
+- **`.xdd/design/notes/brainstorm.md`**（过程）：8 段探讨（缺什么 / 能否复用 / 报告组织 / 续接策略 / 回退预算 / 回退表 / Gherkin / 目录）。
+- **`.xdd/design/notes/external-references.md`**（外部调研）：说明本轮不需外部调研（内部编排改造，参考标杆已在仓库内 xdd-flow）。
+
+### 关键决策摘要
+
+1. **6 节点流程**：3 阶段（explore-design / build / acceptance）+ 3 反思（reflect-design / reflect-build / reflect-acceptance）= 6 节点
+2. **新增 nf-builder agent**：装 `xdd-execute` + `xdd-cleanup` skill（不依赖 xdd-plan），TDD + `@implements RXX` + 6 维度自审
+3. **nf-attacker 阶段化**：同一 agent + `stage` 参数，产出 `reflect-attack-{stage}-report.md`
+4. **反思之间 task_id 续接**（保留 P0 列表），阶段切换不续接
+5. **回退预算维持 8 次**，回退表覆盖 9 种「发现位置 vs 根因」组合
+6. **nfflow 跟 xdd-flow 并存独立**：`.nf/` 跟 `.xdd/` 目录分离，RXX 编号独立，agent 命名独立
+7. **首次为 nfflow 写出 Gherkin 场景**：1 个正向（完整跑通）+ 4 个兜底（反思拦截设计 / 拦截实现 sham / 拦截验收漏测 / 3 试 HALT 问用户）
+
+### 同步更新
+
+- **`.xdd/runs/xdd_run/goals.md`**：分配 G1~G5 5 个高层目标（对应 intent.md 成功标准 1~5）
+- **`.xdd/runs/xdd_run/failure-log.md`**：初始化空文件（失败日志承接）
+
+### 不修改
+
+- 不动 `src/agents/*.md`（flow-agent / nf-designer / nf-attacker / e2e-tester / nf-builder 的具体改写留给后续 xdd-spec / xdd-execute）
+- 不动 `src/skills/nf-design/SKILL.md` / `nf-attack/SKILL.md` / `e2e-test/SKILL.md`
+- 不动 `src/agents/xdd-flow.md` / `xdd-build.md` / `src/skills/xdd-execute/SKILL.md`（xdd-flow 全套保留原状）
+
+### 用户审 design.md
+
+按 xdd-brainstorm skill 纪律，**design.md 写完停下来等用户审**。已列出 7 个 Open Questions 让用户拍板（重点：build-report.md 路径 / 续接保留范围 / 阶段切换续接与否 / 反思是否并行 / P0/P1 Gate 硬性 / 独立 acceptance-attacker / RXX 编号共享）。
+
+### 下游
+
+- **xdd-spec**：把 design.md 决策 1 / 4 / 5 翻译成 RXX + scenarios.feature
+- **xdd-architecture**：把决策 2 / 3 翻译成 nf-builder / nf-attacker 的 SKILL.md 接口约定
+- **xdd-plan**：按 G1~G5 拆 task
+- **xdd-execute**：实施 flow-agent.md / nf-builder.md / nf-attacker.md 改写
+
 ## 2026-07-27 15:03:37 - 删除 flow-agent 的 model 硬编码
 
 ### 变更
