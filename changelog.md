@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-07-28 00:31:19 - 新增 cmd_normal_flow command（nfflow 6 节点流程入口）
+
+### 新增
+- `src/commands/cmd_normal_flow.md`（单条 command，文件名=命令名）
+- 触发：`/cmd_normal_flow <用户任务>`，`$ARGUMENTS` 替换为任务描述
+- 模板：6 节点流程（设计/反思/实现/反思/验证/反思）+ 回炉重做规则 + 报告收集
+- 不写 `agent:` 字段（让主 agent 拿到模板后自己派 sub-agent）
+- 跟 `flow-agent` 并存：command 是用户快捷入口，flow-agent 是专用主调度
+
+### 改动
+- `install.sh`：第 2 行注释 + 第 11 行 `for cur in agents skills plugins commands`
+- `src/commands/` 目录随 cjopencode 安装软链接到 `~/.config/opencode/commands/`
+
+### 不动
+- 不改 `src/agents/` / `src/skills/`（跟现有体系并存）
+- 不改 `flow-agent.md` / `nf-*.md`（command 委派主 agent，自由派发 sub-agent）
+
+### 跟现有体系关系
+- `nf-designer` / `nf-builder` / `nf-attacker` / `e2e-tester` 是 sub-agent（mode: subagent），被 command 派发
+- `flow-agent` 是 primary agent（mode: primary），不被 command 委派（commands 文档规定 agent: 字段指向 subagent）
+- 用户用 command 入口用 nfflow；持续 workflow 仍走 flow-agent
+
 ## 2026-07-27 19:28:00 - nfflow 升级全链推送完成（14 commit 到 main）
 
 ### 本轮 push 总结

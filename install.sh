@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 把 src/ 下的 agents / skills / plugins 安装到 opencode 用户配置目录。
+# 把 src/ 下的 agents / skills / plugins / commands 安装到 opencode 用户配置目录。
 # 用 symlink，改源码即生效，无需复制。
 set -euo pipefail
 
@@ -8,7 +8,7 @@ TARGET_ROOT="${HOME}/.config/opencode"
 
 mkdir -p "${TARGET_ROOT}"
 
-for cur in agents skills plugins; do
+for cur in agents skills plugins commands; do
   src="${REPO_ROOT}/src/${cur}"
   dst="${TARGET_ROOT}/${cur}"
   if [[ ! -e "${src}" ]]; then
