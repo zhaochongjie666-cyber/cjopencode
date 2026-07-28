@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-07-28 22:55:08 - 升级 cmd_think_then_do：脑子持久化机制（7 段结构化信息）
+
+### 升级
+- `src/commands/cmd_think_then_do.md`：加脑子持久化层
+  - 根指令：「这个文件就是脑子的结构化信息」「好记性不如烂笔头，使用文件即是心智」
+  - 脑子结构：7 段固定（目标 / 现状 / 努力 / 历程 / 教训 / 注意事项 / 技巧）+ 可扩展段
+  - 6 步流程每步加「更新脑子对应维度」映射（结构化 + 自由 互补）
+  - 交付时加「归档 + 摘要」指引
+
+### 改动
+- `.gitignore`：新增 `.xdd/brain/` 排除（脑子不入 git）
+
+### 脑子路径
+- `.xdd/brain/<brain-id>.md`（活跃，项目级，跟 `.xdd/design/` 同根）
+- `.xdd/brain/archive/<brain-id>.md`（完成归档）
+- brain-id = `<YYYYMMDD-HHMMSS>-<task-slug>`
+
+### 7 段固定段含义
+- **目标**：why / 真实意图 / 成功的样子 / 不做什么
+- **现状**：到哪了 / 已落地 / 待办 / 当前活跃 Step
+- **努力**：commit / 命令 / 试过的方案 / E2E 结果
+- **历程**：时间线 / 关键节点 / 反思结论
+- **教训**：踩坑 / 错误假设 / 浪费时间的事 / 回退原因
+- **注意事项**：约束 / 约定 / 易踩坑 / P1 warning / E2E 跳过原因
+- **技巧**：窍门 / 模式 / 可复用方法 / 工具用法
+
+### 跟现有体系关系
+- 跟 `cmd_normal_flow`（编排层入口）并行独立
+- 跟 flow-agent session file（未来）是不同概念（脑子 vs 流程跟踪）
+- 脑子是项目级资产，路径 `.xdd/brain/`，不入 git
+
+### 不动
+- 不改 `cmd_normal_flow.md`
+- 不改 `src/agents/flow-agent.md`（独立）
+- 不改 `install.sh`
+- 不改 `.xdd/design/`（本次是 command 层升级）
+
 ## 2026-07-28 12:42:27 - 新增 cmd_think_then_do command（用户思考工作流入口）
 
 ### 新增
