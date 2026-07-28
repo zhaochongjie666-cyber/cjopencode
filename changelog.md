@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-07-28 12:42:27 - 新增 cmd_think_then_do command（用户思考工作流入口）
+
+### 新增
+- `src/commands/cmd_think_then_do.md`（单条 command，文件名=命令名）
+- 触发：`/cmd_think_then_do <用户任务>`，`$ARGUMENTS` 替换为任务描述
+- 模板：6 步流程（边界→计划→反思→实现→反思→双层校验）
+- Layer A：6 维度静态校验（代码质量 / 可靠性 / 安全 / 性能 / 可维护性 / 文档同步）
+- **Layer B：E2E 浏览器测试（最重要）**——主 agent 自己跑 playwright，1~3 个核心 journey
+- P0 硬阻塞（E2E FAIL）+ P1 软警告（6 维度）
+- 环境受限兜底（无 GUI 时标注 + 手动验证清单）
+
+### 跟 cmd_normal_flow 关系
+- `cmd_think_then_do` = **思考层**（用户视角，主 agent 自己跑，不派 sub-agent）
+- `cmd_normal_flow` = **编排层**（系统视角，派 nf-* × 4）
+- **并行独立**，不互调
+
+### 不动
+- 不改 `install.sh`（commands 目录已含）
+- 不改 `cmd_normal_flow.md`
+- 不改 `src/agents/` / `src/skills/`
+- 不依赖 `e2e-tester` sub-agent
+
 ## 2026-07-28 00:31:19 - 新增 cmd_normal_flow command（nfflow 6 节点流程入口）
 
 ### 新增
