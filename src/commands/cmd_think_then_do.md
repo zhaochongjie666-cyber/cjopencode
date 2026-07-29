@@ -94,29 +94,44 @@ brain-id = `<YYYYMMDD-HHMMSS>-<task-slug>`
 → **更新脑子**：§现状（6 维度结论）+ §注意事项（P1 warning）
 
 ### Layer B · E2E 浏览器测试（最重要）🎯
-**主 agent 自己跑**（不派 e2e-tester）：
+**主 agent 自己跑**（不派 e2e-tester，**禁止跳过**，禁止「手动验证清单」兜底）：
 
-1. **启动应用**：
+1. **环境检测**（强制前置）：
    ```bash
-   # 二选一
+   bash src/skills/e2e-setup/scripts/check.sh
+   ```
+   **FAIL ≥ 1 → 必须装**（不允许用"环境受限"作 E2E 跳过理由）：
+   ```bash
+   bash src/skills/e2e-setup/scripts/setup.sh
+   ```
+   装完再跑 `check.sh` 验证，**仍 FAIL 才 HALT 报告用户**（不准继续往下编"手动清单"）
+
+2. **启动应用**：
+   ```bash
    docker compose up -d
-   # 或
-   npm start &  # 或 python main.py &
+   # 或 npm start & / python main.py &
    ```
-2. **写 playwright 脚本**——针对用户真实用例设计 **1~3 个核心 journey**（按任务复杂度灵活调整，如「登录 → 创建订单 → 验证」）
-3. **跑测试**：
+
+3. **写 playwright 脚本**——针对用户真实用例设计 **1~3 个核心 journey**（按任务复杂度灵活调整，如「登录 → 创建订单 → 验证」）
+
+4. **跑测试**（headless 强制）：
    ```bash
-   npx playwright install chromium  # 首次安装
-   npx playwright test --reporter=list
+   npx playwright install chromium  # 双保险
+   npx playwright test --reporter=list --headed=false
    ```
-4. **断言**：每个 journey 必须 PASS（含截图 + HTTP 状态码 + DOM 元素存在）
-5. **失败处理**：任何 journey FAIL → **P0 硬阻塞 → 回 Step 4 重写**（实现 bug）
 
-**环境受限处理**：
-- 容器/CI 无浏览器：使用 `playwright-chromium` headless
-- 完全无 GUI 环境：标注「E2E 跳过 - 环境受限」+ 输出**手动验证清单**（步骤 + 期望结果 + 截图位置）
+5. **断言**：每个 journey 必须 PASS（含截图 + HTTP 状态码 + DOM 元素存在）
 
-→ **更新脑子**：§努力（E2E 结果 + 截图路径）+ §注意事项（E2E 跳过原因）+ §技巧（playwright 用法）+ §历程（`<时间戳> E2E`）
+6. **失败处理**：任何 journey FAIL → **P0 硬阻塞 → 回 Step 4 重写**（实现 bug）
+
+**绝对禁止**：
+- ❌ 禁止"环境受限 → 输出手动验证清单"（偷懒借口）
+- ❌ 禁止"容器无 Chromium → 跳过 E2E"（应该 setup.sh 装上）
+- ❌ 禁止"无 GUI 环境 → 标注跳过"（必须 headless 跑通）
+
+**装 `e2e-setup` skill 解决**：环境真有问题 → 装 skill 调 setup.sh 装齐，不允许偷懒。
+
+→ **更新脑子**：§努力（E2E 结果 + 截图路径）+ §注意事项（install 步骤 / 已装版本）+ §技巧（playwright 用法）+ §历程（`<时间戳> E2E`）
 
 ## 交付
 完成后摘要：

@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-07-29 08:51:20 - 加 e2e-setup skill + 修复 cmd_think_then_do 偷懒兜底
+
+### 问题
+- 测试 shuangmubiaozhu 时发现 E2E 跑不通，主 agent 用「环境受限 → 手动验证清单」擦屁股
+- 这是偷懒借口：环境其实够用（google-chrome 装好、playwright 装好），缺的是工具
+
+### 新增 skill
+- `src/skills/e2e-setup/SKILL.md`：E2E 环境检测/安装方法论
+  - 反 sham 底线：禁止"环境受限 → 跳过 E2E"
+  - 何时装：cmd_think_then_do / flow-agent / e2e-tester Layer B 阶段
+- `src/skills/e2e-setup/scripts/check.sh`：5 项环境检测
+  - playwright / playwright chromium / 系统 chrome / 系统依赖 / docker
+  - exit 0=OK / 2=WARN / 1=FAIL
+- `src/skills/e2e-setup/scripts/setup.sh`：一键安装
+  - 装 @playwright/test + chromium 浏览器 + 系统依赖(apt)
+  - 支持 `--check-only`
+
+### 修复 cmd_think_then_do Layer B
+- 删掉「环境受限 → 手动验证清单」偷懒兜底
+- 强制 `check.sh` + `setup.sh` 前置
+- 强制 `npx playwright test --headed=false` headless 跑通
+- 加 3 条 ❌ 绝对禁止规则
+
+### 不动
+- 不改 src/agents/ / 其他 skills
+- 不改 install.sh（scripts 在 skills 下面，已自动链）
+
 ## 2026-07-28 22:55:08 - 升级 cmd_think_then_do：脑子持久化机制（7 段结构化信息）
 
 ### 升级
