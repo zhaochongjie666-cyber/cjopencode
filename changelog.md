@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-29 11:51:43 - 升级 xdd-wire skill：画图方式从 ASCII 改 SVG code fence
+
+### 升级
+- `src/skills/xdd-wire/SKILL.md` (253→355 行)
+  - 描述 + 模板 + 自检：ASCII 段落 → SVG code fence 嵌入 markdown
+  - 加「SVG 基础规范」段：基础元素（rect/text/line/circle）+ 颜色规范 + viewBox 用 800×600/400×600
+  - 加 8 个完整 SVG 示例：desktop/mobile/空/加载/错误/成功/确认/边界
+  - 自检加 2 条：SVG 用 ```svg``` 包裹 / SVG 含 viewBox + 基础元素
+
+### 效果
+- wire 文档（`.xdd/design/wire/{page}.md`）顶层直接 ```svg，无嵌套 fence，IDE/GitHub/GitLab/Obsidian 直接渲染
+- SKILL.md 自身的模板示例因嵌套 fence 妥协为 4-backtick markdown code block（LLM 可读，IDE 仅显示字符串）
+
+### 不动
+- 不改 wire/ 目录当前任何内容
+- 不改 src/agents/ 或其他 skills
+- 不改 install.sh
+
 ## 2026-07-29 08:51:20 - 加 e2e-setup skill + 修复 cmd_think_then_do 偷懒兜底
 
 ### 问题
