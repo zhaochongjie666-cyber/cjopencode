@@ -8,6 +8,22 @@
 - 想清楚「怎么实现 / 端点 / 数据 / 边界 case」
 - 跟用户对齐意图，**冲突时停下问用户，不要擅自仲裁**
 
+**design 必须把以下文档真实落到磁盘**（不只在脑子里想）：
+
+| 产物 | 路径模板 | 用途 |
+|------|---------|------|
+| 意图锚 | `.xdd/design/intent.md` | 用户为什么做、成功标准 |
+| 设计决策 | `.xdd/design/design.md` | 收敛方案、用户旅程、取舍 |
+| 业务规则 | `.xdd/design/spec/{Bxx-slug}/rules.md` | RXX 编号 + 正向/兜底 |
+| Gherkin 场景 | `.xdd/design/spec/{Bxx-slug}/scenarios.feature` | 正向 + 异常场景 + `@covers RXX` |
+| 架构 | `.xdd/design/architecture/{Bxx-slug}/architecture.md` | 端点 / 事件 / 数据 / 依赖 |
+| 流程图 | `.xdd/design/architecture/{Bxx-slug}/flow.mermaid` | 状态机 / 流程 |
+| 前端线框 | `.xdd/design/wire/{page}.md` | SVG 嵌入 markdown |
+| 韧性 | `.xdd/design/architecture/{Bxx-slug}/resilience/` | 失败模式 + 兜底 + 恢复剧本 |
+
+每条规则都有 RXX + Feature 覆盖；每个端点有契约；每个用户旅程有 wire；
+没落到磁盘 = 没 design 完。
+
 **确认后再 TDD**——
 
 - 先写失败测试（红）

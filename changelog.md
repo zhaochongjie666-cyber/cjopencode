@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-29 14:33:59 - SYSTEM_AGENTS.md：补 design 产物清单（gherkin / wire / 架构等）
+
+### 变更
+- `src/SYSTEM_AGENTS.md` 第 1 段「先 design」段添加产物清单表：
+  - 意图锚 `.xdd/design/intent.md`
+  - 设计决策 `.xdd/design/design.md`
+  - 业务规则 `.xdd/design/spec/{Bxx-slug}/rules.md`
+  - **Gherkin** `.xdd/design/spec/{Bxx-slug}/scenarios.feature`
+  - 架构 `.xdd/design/architecture/{Bxx-slug}/architecture.md`
+  - 流程图 `.xdd/design/architecture/{Bxx-slug}/flow.mermaid`
+  - **wire** `.xdd/design/wire/{page}.md`（SVG 嵌入 markdown）
+  - 韧性 `.xdd/design/architecture/{Bxx-slug}/resilience/`
+
+### 关键决策
+- 明确「design 必须落到磁盘」——不只在脑子里想
+- 加铁律：「每条规则都有 RXX + Feature 覆盖；每个端点有契约；每个用户旅程有 wire；没落到磁盘 = 没 design 完」
+- 涵盖全设计层产物（8 类），让 AI 设计时直接产出
+
 ## 2026-07-29 13:35:00 - 极简 SYSTEM_AGENTS.md：先 design，再 TDD
 
 ### 变更
