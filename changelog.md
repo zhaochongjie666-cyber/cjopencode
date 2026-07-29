@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-07-29 13:22:58 - 抽离通用 web wire design：新建 wire-design skill + xdd-wire 瘦身
+
+### 抽离架构
+```
+src/skills/
+├── wire-design/   ← 新建 (通用层, 不带 xdd)
+│   ├── SKILL.md          (~770 行, 设计哲学 + 用户关注点 + 5 类模板 + 反例画廊)
+│   └── references/
+│       └── examples.md    (130 行, SVG 案例库)
+│
+└── xdd-wire/      ← 瘦身 (355 → 108 行, 仅 xdd 特定约定)
+    ├── SKILL.md          (108 行, 上下游绑定 + 路径 + RXX + xdd 自检 6 条)
+    └── references/       (保留 operation-states.md + ux-review.md)
+```
+
+### 通用 wire-design 内容
+- 设计哲学 6 条（信息密度 / 层级 / 数字三要素 / 按钮 / 跳转 / 一致性）
+- 用户关注点 5 问（角色 / 关注 / 动作 / 决策 / 带宽）
+- 角色 × 关注点矩阵（P1-P5 + 游客）
+- SVG 基础规范（viewBox + 颜色 + 元素）
+- 5 类数据页模板（概览 / 列表 / 详情 / 表单 / 对比，每个完整 SVG）
+- Hero Metric 选型表
+- 9 操作态（6 旧 + 首屏引导 / 权限拒绝 / 版本陈旧）
+- 关注点 → 区块映射
+- 反 sham 自检 8 条
+- 反例画廊（5 个 SVG 反例 → 正例）
+
+### xdd-wire 瘦身内容
+- 必装上游: wire-design (通用)
+- xdd 上下游绑定
+- xdd 路径约定: `.xdd/design/wire/{page}.md`
+- xdd 自检清单: 14 条 (8 通用 + 6 xdd)
+- 跟其他 xdd skill 配合表（8 节点流程图）
+
+### 不动
+- 不改 src/agents/, install.sh
+- 不改 xdd-wire/references/operation-states.md 与 ux-review.md
+
 ## 2026-07-29 11:51:43 - 升级 xdd-wire skill：画图方式从 ASCII 改 SVG code fence
 
 ### 升级
