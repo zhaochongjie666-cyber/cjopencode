@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-07-29 13:35:00 - 极简 SYSTEM_AGENTS.md：先 design，再 TDD
+
+### 变更
+- `src/SYSTEM_AGENTS.md`：从 4 行口语化规则改写为 4 段极简结构（30 行）
+
+### 4 段极简
+1. **先 design，再 TDD** —— 写之前捋边界/想方案/对齐 → 再红绿重构
+2. **说中文** —— 沟通/注释/错误都用中文
+3. **任务完成 = changelog + recap** —— 顶部插带时间戳条目
+4. **新知识 → `./docs/<topic>.md`** —— 路径修正（不是 `.docs/`）
+
+### 修复
+- 路径 bug：`.docs/xx.md` → `./docs/xx.md`（旧规则会创出隐藏目录错版）
+- 时间格式没范例 → 加 `## YYYY-MM-DD HH:MM:SS - 标题` + 4 段摘要模板
+
+### 关键决策
+- 核心原则「先 design，再 TDD」提到第 1 段（最重要）
+- 不复杂化（用户明确「不改这么多」），保持 4 段简短
+- 冲突时停顿问用户 → 强调不要擅自仲裁
+
+### 不动
+- 不改 cjopencode AGENTS.md（项目说明，需要批准）
+- 不改各 agent / skill / command 的具体定义
+
 ## 2026-07-29 13:22:58 - 抽离通用 web wire design：新建 wire-design skill + xdd-wire 瘦身
 
 ### 抽离架构

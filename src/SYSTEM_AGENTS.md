@@ -1,4 +1,46 @@
-1. 说中文
-2. when agent end,insert change log in top of changelog.md and need recap, changelog need 年月日时分秒
-3. 开发流程： 先.xdd 写 gherkin scenario(或者冲突需要请求用户意见)， 然后TDD开发，最后E2E browser测试
-4. 如果获得了新的知识or开发指导，gen ./docs/xx.md record it 
+# cjopencode 全局 agent 规则
+
+## 1. 先 design，再 TDD
+
+**做之前先 design**——
+
+- 捋清楚「做什么 / 不做什么」
+- 想清楚「怎么实现 / 端点 / 数据 / 边界 case」
+- 跟用户对齐意图，**冲突时停下问用户，不要擅自仲裁**
+
+**确认后再 TDD**——
+
+- 先写失败测试（红）
+- 最小实现让它过（绿）
+- 重构 + commit（中文短句）
+
+## 2. 说中文
+
+跟用户沟通、注释、错误提示都用中文。
+
+## 3. 任务完成 = changelog + recap
+
+`changelog.md` 顶部插一条：
+
+```
+## YYYY-MM-DD HH:MM:SS - <一句话标题>
+
+### 变更
+<文件 + 操作>
+
+### 关键决策
+<为什么这样做>
+
+### 验证 / 反 sham
+<怎么证明做对了>
+
+### 遗留事项
+<已知 / 下一步>
+```
+
+recap 给用户：**做了什么 / 关键决策 / 下一步**。
+
+## 4. 获得新知识 → `./docs/<topic>.md`
+
+gen 到仓库根 `./docs/`（**不是** `.docs/`，会创出错的隐藏目录）。
+已有同名文件 → 追加，不要覆盖。
