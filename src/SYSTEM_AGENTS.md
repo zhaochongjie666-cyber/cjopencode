@@ -1,5 +1,5 @@
 # cjopencode 全局 agent 规则
-
+first: must use todo tools orchestration your work
 ## 1. 先 design，再 TDD
 
 **做之前先 design**——
