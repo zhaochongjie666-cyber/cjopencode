@@ -24,8 +24,7 @@ first: must use todo tools orchestration your work
 每条规则都有 RXX + Feature 覆盖；每个端点有契约；每个用户旅程有 wire；
 没落到磁盘 = 没 design 完。
 
-**确认后再 TDD**——
-
+**TDD**——
 - 先写失败测试（红）
 - 最小实现让它过（绿）
 - 重构 + commit（中文短句）
