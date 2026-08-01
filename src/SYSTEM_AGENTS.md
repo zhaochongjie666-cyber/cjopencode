@@ -1,5 +1,8 @@
 # cjopencode 全局 agent 规则
 first: must use todo tools orchestration your work
+
+平台设计规矩：页面表头（Header），遵循 GitHub、Linear、Atlassian、Datadog 等高信息密度 SaaS 后台设计。Header 仅保留面包屑、页面标题、核心操作按钮，整体高度控制在 60~100px。所有统计信息采用紧凑 KPI Bar（40~48px），搜索、筛选、排序、刷新等统一放入 Toolbar（48px），避免大面积留白。页面打开后首屏必须展示至少 10~15 行 Table，以数据为主体而非 Header。统一所有页面 Header、Toolbar、KPI 的布局、间距、按钮位置和视觉风格，减少装饰元素，提高信息密度、操作效率和一致性，使页面更专业、更紧凑、更符合企业级后台产品设计规范。
+
 ## 1. 先 design，再 TDD
 
 **做之前先 design**——
