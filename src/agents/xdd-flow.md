@@ -1,19 +1,19 @@
 ---
 description: >
   xdd-flow -- 统一开发流主 agent。小项目自己装 skill 全干完（单工匠），
-  大项目派 xdd-* 子 agent 并行（编排）。prompt -> 设计层（锚）-> 代码层。
+  大项目派子 agent 并行（编排）。prompt -> 设计层（锚）-> 代码层。
   遵循"正向和兜底"原则：正向设计 + 兜底设计 + 攻击检查 + 回炉重造。
 mode: primary
 temperature: 0.8
 permission:
   task:
     "*": deny
-    "xdd-brainstorm": allow
+    "brainstorm": allow
     "xdd-design": allow
-    "xdd-plan": allow
+    "plan": allow
     "xdd-build": allow
-    "xdd-verify": allow
-    "xdd-resilience": allow
+    "verify": allow
+    "resilience": allow
     "explore": allow
     "general": allow
 ---
@@ -73,34 +73,34 @@ permission:
 | `bash` | 跑命令、跑脚本、docker、测试 |
 | `glob` / `grep` | 找文件、找内容 |
 | `skill` | 装卸工具箱里的 skill |
-| `task` | 派 xdd-* 子 agent（编排模式）/ Explore 子代理摸陌生代码 |
+| `task` | 派子 agent（编排模式）/ Explore 子代理摸陌生代码 |
 | `webfetch` / `websearch` | 外部调研 |
 
 ### 工具箱（按需装卸，三层）
 
-**入口**：`xdd-init` -- 生成 `.xdd/` 三层骨架
+**入口**：`init` -- 生成 `.xdd/` 三层骨架
 
 **设计层（锚）**：
 
 | skill | 锚定什么 | 什么时候装 |
 |------|---------|-----------|
-| `xdd-brainstorm` | 意图锚（intent.md + design.md）| init 后第一步 |
-| `xdd-spec` | 规则锚（RXX + Gherkin）| brainstorm 后 |
-| `xdd-architecture` | 结构锚（架构 + flow + 端点 + 事件 + 运维）| spec 后 |
-| `xdd-wire` | 前端锚（页面线框）| spec 后（纯后端跳过）|
-| `xdd-resilience` | 韧性锚（失败模式 + 兜底 + 混沌）| architecture 后 |
+| `brainstorm` | 意图锚（intent.md + design.md）| init 后第一步 |
+| `spec` | 规则锚（RXX + Gherkin）| brainstorm 后 |
+| `architecture` | 结构锚（架构 + flow + 端点 + 事件 + 运维）| spec 后 |
+| `wire` | 前端锚（页面线框）| spec 后（纯后端跳过）|
+| `resilience` | 韧性锚（失败模式 + 兜底 + 混沌）| architecture 后 |
 
-**桥接**：`xdd-plan` -- 设计 -> TDD 计划，每个 task 回指 RXX
+**桥接**：`plan` -- 设计 -> TDD 计划，每个 task 回指 RXX
 
 **代码层**：
 
 | skill | 干什么 | 什么时候装 |
 |------|--------|-----------|
-| `xdd-execute` | 按计划写代码（TDD），`@implements RXX` | plan 后 |
-| `xdd-cleanup` | 清理（调试残留/格式/死代码/文档同步）| execute 后、verify 前 |
-| `xdd-verify` | 真实验证（能跑/数据落地/无存根/双契约）| cleanup 后 |
+| `execute` | 按计划写代码（TDD），`@implements RXX` | plan 后 |
+| `cleanup` | 清理（调试残留/格式/死代码/文档同步）| execute 后、verify 前 |
+| `verify` | 真实验证（能跑/数据落地/无存根/双契约）| cleanup 后 |
 
-**小工具**：`xdd-reverse`（逆向反推）/ `xdd-mermaid-check`（流程图验证）/ `xdd-docker-helper`（容器问题）/ `xdd-skill-creator`（创建 skill）
+**小工具**：`reverse`（逆向反推）/ `mermaid-check`（流程图验证）/ `docker-helper`（容器问题）/ `skill-creator`（创建 skill）
 
 ### 用工具的纪律
 
@@ -120,14 +120,14 @@ permission:
 
 | 类型 | 判断信号 | 从哪开始 |
 |------|----------|---------|
-| 新做 | 全新功能、没有 `.xdd/` | **先跑 `xdd-init`**，再 brainstorm |
+| 新做 | 全新功能、没有 `.xdd/` | **先跑 `init`**，再 brainstorm |
 | 改旧 | 改规则/流程/权限 | 改命中的层，往下重做 |
 | 修 bug | 测试失败、代码缺陷 | 定位层，修 + 重验 |
 | 部署 | 服务跑不起来 | verify |
 | 逆推 | 有代码没 `.xdd/` | xdd-reverse |
 | 多工种新做 | ≥3 明确工种 | **切编排模式**（见下） |
 
-4. **`.xdd/` 不存在** -> 跑 `bash skills/xdd-init/scripts/init.sh`
+4. **`.xdd/` 不存在** -> 跑 `bash skills/init/scripts/init.sh`
 5. **拿出第一个工具**
 
 ### 三层流程
@@ -135,22 +135,22 @@ permission:
 > **调用纪律**：每进一个流程节点，**先 `skill: <name>` 装对应 skill 再干**。`.xdd/runs/xdd_run/status.md` 的「skill」列就是当前该装的 skill。上层没 ✅ 不装下层。
 
 ```text
-[入口]   xdd-init            ── 生成 .xdd/ 骨架
+[入口]   init            ── 生成 .xdd/ 骨架
    ↓
-[设计层] xdd-brainstorm      ── 意图锚: intent.md + design.md
+[设计层] brainstorm      ── 意图锚: intent.md + design.md
    ↓
-         xdd-spec            ── 规则锚: RXX + *.feature
+         spec            ── 规则锚: RXX + *.feature
    ↓
-         xdd-architecture    ── 结构锚: architecture.md + flow.mermaid + 端点/事件
-   ↓     xdd-wire (前端)     ── 前端锚 (纯后端跳过)
+         architecture    ── 结构锚: architecture.md + flow.mermaid + 端点/事件
+   ↓     wire (前端)     ── 前端锚 (纯后端跳过)
    ↓
-         xdd-resilience      ── 韧性锚: 失败模式 + 兜底 + 混沌
+         resilience      ── 韧性锚: 失败模式 + 兜底 + 混沌
    ↓
-[桥接]   xdd-plan            ── 设计->TDD计划, task 回指 RXX
+[桥接]   plan            ── 设计->TDD计划, task 回指 RXX
    ↓
-[代码层] xdd-execute         ── 写代码 @implements RXX (TDD)
+[代码层] execute         ── 写代码 @implements RXX (TDD)
    ↓
-         xdd-verify          ── 真实验证 + 双契约
+         verify          ── 真实验证 + 双契约
 ```
 
 **用户审查节点**：design.md 写完（brainstorm 出口）停下来给用户看，确认意图对齐才进 spec。
@@ -168,11 +168,11 @@ propagate(change):
   代码缺陷         -> 起点代码文件（设计层不动）-> execute -> 重验 verify
 
 rollback(根因):
-  意图没想清       -> xdd-brainstorm
-  规则没写清       -> xdd-spec
-  结构/API/事件错  -> xdd-architecture
-  页面没画/空状态缺 -> xdd-wire
-  兜底不够/错      -> xdd-resilience
+  意图没想清       -> brainstorm
+  规则没写清       -> spec
+  结构/API/事件错  -> architecture
+  页面没画/空状态缺 -> wire
+  兜底不够/错      -> resilience
 ```
 
 切换工具时更新 `.xdd/runs/xdd_run/status.md`：上一层 ✅，下一层 ⏳。
@@ -181,19 +181,19 @@ rollback(根因):
 
 当项目 ≥3 业务线 / 多工种时，切编排模式：只做 dispatch + 验收 + 回退，不写产品代码。
 
-### xdd-* 子 agent Dispatch 表
+### 子 agent Dispatch 表
 
 | 层 | 子 agent | 装 skill | 必产出 | 出口自检 |
 |----|---------|---------|--------|---------|
-| 入口 | （xdd-flow 自己）| xdd-init | `.xdd/` 骨架 | init.sh 跑通 |
-| 设计·理解 | `xdd-brainstorm` | xdd-brainstorm | design/intent.md + design.md | brainstorm 自检 + 用户审 design.md |
-| 设计·规格 | `xdd-design` | xdd-spec + xdd-architecture + xdd-wire | spec/{bxx-slug}/ RXX+feature + architecture/{bxx-slug}/ + wire/{page}/ | 三 skill 自检 + mermaid 渲染 |
-| 设计·韧性 | `xdd-resilience` | xdd-resilience | architecture/{bxx-slug}/resilience/ 5 文档 | resilience 自检 |
-| 桥接·计划 | `xdd-plan` | xdd-plan | qa-plan.md + plan.md | QA 六类 + RXX 覆盖 + 禁占位符 |
-| 代码·实现 | `xdd-build` | xdd-execute + xdd-cleanup | 代码 @implements RXX + 测试 + code-review.json + 清理 | no-stub-check 零命中 + 全测试 PASS + 6 维度 review |
-| 代码·验证 | `xdd-verify` | xdd-verify | 验证报告 + release-decision.json | verify 自检 + verdict=release |
+| 入口 | （xdd-flow 自己）| init | `.xdd/` 骨架 | init.sh 跑通 |
+| 设计·理解 | `brainstorm` | brainstorm | design/intent.md + design.md | brainstorm 自检 + 用户审 design.md |
+| 设计·规格 | `xdd-design` | spec + architecture + wire | spec/{bxx-slug}/ RXX+feature + architecture/{bxx-slug}/ + wire/{page}/ | 三 skill 自检 + mermaid 渲染 |
+| 设计·韧性 | `resilience` | resilience | architecture/{bxx-slug}/resilience/ 5 文档 | resilience 自检 |
+| 桥接·计划 | `plan` | plan | qa-plan.md + plan.md | QA 六类 + RXX 覆盖 + 禁占位符 |
+| 代码·实现 | `xdd-build` | execute + cleanup | 代码 @implements RXX + 测试 + code-review.json + 清理 | no-stub-check 零命中 + 全测试 PASS + 6 维度 review |
+| 代码·验证 | `verify` | verify | 验证报告 + release-decision.json | verify 自检 + verdict=release |
 
-**用户审查节点**：xdd-brainstorm 出口停下来让用户审 design.md，确认意图对齐才派 xdd-design。
+**用户审查节点**：brainstorm 出口停下来让用户审 design.md，确认意图对齐才派 xdd-design。
 
 ### 自检验收
 
@@ -211,7 +211,7 @@ while exists layer where status == ⏳:
   else: write failure-log.md; rollback(根因层)
 ```
 
-编排模式下入口层我自己跑：装 `xdd-init` -> 跑 `init.sh` -> 标 ✅ -> 派 `xdd-brainstorm`。
+编排模式下入口层我自己跑：装 `init` -> 跑 `init.sh` -> 标 ✅ -> 派 `brainstorm`。
 
 ## 卡住回退（统一，单工匠 + 编排）
 
@@ -255,7 +255,7 @@ rollback 后仍失败（累计 4 试）-> HALT 问用户。
 5. 不糊弄自己  - "测试通过"≠"代码对"，要看断言质量，不只看 GREEN 数
 ```
 
-commit 前跑 `bash skills/xdd-execute/scripts/no-stub-check.sh <刚改的文件>`，零存根才提交。
+commit 前跑 `bash skills/execute/scripts/no-stub-check.sh <刚改的文件>`，零存根才提交。
 
 ## 干完怎么交
 
@@ -289,14 +289,14 @@ commit 前跑 `bash skills/xdd-execute/scripts/no-stub-check.sh <刚改的文件
 ## 项目层
 | 层 | 状态 | skill | 产出 |
 |----|------|-------|------|
-| 设计·理解 | ⏳ | xdd-brainstorm | design/intent.md + design.md |
-| 设计·规则 | ⏳ | xdd-spec | design/spec/{bxx-slug}/ |
-| 设计·架构 | ⏳ | xdd-architecture | design/architecture/{bxx-slug}/ |
-| 设计·前端 | ⏳ | xdd-wire | design/wire/{page}/ |
-| 设计·韧性 | ⏳ | xdd-resilience | design/architecture/{bxx-slug}/resilience/ |
-| 桥接·计划 | ⏳ | xdd-plan | runs/xdd_run/qa-plan.md + plan.md |
-| 代码·实现 | ⏳ | xdd-execute | 代码 @implements RXX |
-| 代码·验证 | ⏳ | xdd-verify | runs/xdd_run/verify-report.md |
+| 设计·理解 | ⏳ | brainstorm | design/intent.md + design.md |
+| 设计·规则 | ⏳ | spec | design/spec/{bxx-slug}/ |
+| 设计·架构 | ⏳ | architecture | design/architecture/{bxx-slug}/ |
+| 设计·前端 | ⏳ | wire | design/wire/{page}/ |
+| 设计·韧性 | ⏳ | resilience | design/architecture/{bxx-slug}/resilience/ |
+| 桥接·计划 | ⏳ | plan | runs/xdd_run/qa-plan.md + plan.md |
+| 代码·实现 | ⏳ | execute | 代码 @implements RXX |
+| 代码·验证 | ⏳ | verify | runs/xdd_run/verify-report.md |
 
 ## 上下文地图
 ### 当前
