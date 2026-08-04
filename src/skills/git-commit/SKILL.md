@@ -201,9 +201,62 @@ chore: bump dependencies and update CI matrix
 - **用户在 Meta 仓库（如本 framework 自身 `cjxdd`）** → 遵守该仓库的 commit 约定。如 `AGENTS.md` 规定的 `Co-Authored-By` footer，按规矩加，不要漏。
 - **husky / pre-commit hook 失败** → 把 hook 输出原样给用户，不要绕过（如 `--no-verify`）。修问题，不是绕检查。
 
+## 6. 创建 GitLab MR（push options 方式）
+
+GitLab 支持通过 SSH 已有权限的 `git push -o merge_request.create` 创建 MR，**无需 `glab` CLI 或 API Token**。
+
+### 前置核对
+
+```bash
+git branch --show-current          # 当前分支（source branch）
+git log origin/<target>..HEAD --oneline   # 将进入 MR 的提交范围
+# 检查是否已有 MR（避免重复创建）
+git ls-remote origin refs/merge-requests/*/head 2>/dev/null | head -5
+```
+
+### 创建 MR
+
+```bash
+git push origin <source-branch> \
+  -o merge_request.create \
+  -o merge_request.target=<target-branch> \
+  -o "merge_request.title=<MR 标题>" \
+  -o "merge_request.description=<描述（可选）>" \
+  -o merge_request.remove_source_branch    # 可选：合并后删除源分支
+```
+
+**常用示例：**
+
+```bash
+# 推送并自动创建 MR，目标分支为 main
+git push origin feat/my-feature \
+  -o merge_request.create \
+  -o merge_request.target=main \
+  -o "merge_request.title=feat(auth): add password reset flow"
+```
+
+### 注意事项
+
+- `merge_request.create` 只在分支**首次推送**或**尚无对应 MR** 时才创建；若 MR 已存在则跳过（不会重复创建）。
+- 标题/描述含空格须用**引号**包裹（`-o "merge_request.title=..."`）。
+- 需要 GitLab 12.4+；Bitbucket / GitHub 不支持此 push option（GitHub 用 `gh pr create`，Bitbucket 用 Web UI 或 API）。
+- 推送输出会打印 MR 链接，如 `remote: View merge request for feat/my-feature: https://gitlab.com/.../merge_requests/42`。
+
+### 决策流
+
+```
+用户说"帮我建 MR" / "push 完创建 MR":
+  1. 确认 source branch（当前分支）
+  2. 确认 target branch（默认 main/master，问用户）
+  3. 核对提交范围：git log origin/<target>..HEAD --oneline
+  4. 检查是否已有 MR（有则询问用户是否只推送不新建）
+  5. 组装 push options 命令并执行
+  6. 回显 GitLab 返回的 MR 链接
+```
+
 ## 自检
 
-本 skill 只依赖 `git` 标准命令（`diff` / `status` / `add` / `commit` / `log`），无平台 hook / plugin / 平台专属命令。
+本 skill 核心依赖 `git` 标准命令（`diff` / `status` / `add` / `commit` / `log`），MR 创建部分依赖 GitLab push options（需 GitLab 12.4+），无需额外 CLI 工具或 Token。
 
 验证方式：跑 framework-conventions.md §5 的零平台耦合检查（`agents/` + `skills/` 排除 archive 期望 0 命中）。
 
