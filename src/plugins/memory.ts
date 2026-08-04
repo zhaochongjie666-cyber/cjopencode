@@ -2,7 +2,7 @@ import type { Plugin, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
 import { embed, embedMany, cosineSimilarity } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
-import { spawn, type Subprocess } from "bun"
+import { spawn } from "bun"
 
 // ---------------------------------------------------------------------------
 // 配置
@@ -15,14 +15,27 @@ const MAX_MEMORIES = Number(process.env.MEMORY_MAX_ITEMS ?? "2000")
 const TOP_K = Number(process.env.MEMORY_TOP_K ?? "10")
 const RERANK_TOP_N = Number(process.env.MEMORY_RERANK_TOP_N ?? "5")
 const STORE_PATH = process.env.MEMORY_STORE_PATH ?? ""
-const VLLM_STARTUP_TIMEOUT = Number(process.env.MEMORY_VLLM_STARTUP_TIMEOUT ?? "300") // 秒
+const VLLM_STARTUP_TIMEOUT = Number(process.env.MEMORY_VLLM_STARTUP_TIMEOUT ?? "600") // 秒（含镜像拉取）
 const VLLM_EXTRA_ARGS = process.env.MEMORY_VLLM_EXTRA_ARGS ?? "" // 额外 vllm 参数
+const VLLM_DOCKER_IMAGE = process.env.MEMORY_VLLM_DOCKER_IMAGE ?? "vllm/vllm-openai:latest"
+const VLLM_CONTAINER_NAME = process.env.MEMORY_VLLM_CONTAINER_NAME ?? "opencode-memory-vllm"
+const VLLM_GPU_COUNT = process.env.MEMORY_VLLM_GPU_COUNT ?? "all" // "all" 或具体数字
 
 // ---------------------------------------------------------------------------
-// vLLM 生命周期管理：安装、启动、健康检查
+// Docker 容器管理：拉取镜像、启动容器、健康检查
 // ---------------------------------------------------------------------------
-let vllmProcess: Subprocess | null = null
 let vllmReady = false
+
+/** 执行命令并返回 stdout */
+async function exec(cmd: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  const proc = spawn(cmd, { stdout: "pipe", stderr: "pipe" })
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  return { code, stdout: stdout.trim(), stderr: stderr.trim() }
+}
 
 /** 检查 vLLM 服务是否已在运行 */
 async function isVllmHealthy(): Promise<boolean> {
@@ -36,51 +49,51 @@ async function isVllmHealthy(): Promise<boolean> {
   }
 }
 
-/** 通过 pip 安装 vLLM（如果尚未安装） */
-async function ensureVllmInstalled(): Promise<void> {
-  try {
-    const check = spawn(["python3", "-c", "import vllm"], {
-      stdout: "ignore",
-      stderr: "ignore",
-    })
-    const exitCode = await check.exited
-    if (exitCode === 0) return
-  } catch {
-    // python3 不存在或 import 失败，继续安装
-  }
-
-  console.log("[memory] 正在安装 vLLM …")
-  const install = spawn(["pip", "install", "-U", "vllm"], {
-    stdout: "inherit",
-    stderr: "inherit",
-  })
-  const code = await install.exited
+/** 检查 Docker 是否可用 */
+async function ensureDocker(): Promise<void> {
+  const { code } = await exec(["docker", "info"])
   if (code !== 0) {
-    throw new Error(`[memory] pip install vllm 失败 (exit ${code})`)
+    throw new Error("[memory] Docker 不可用，请确保已安装 Docker 并且 Docker daemon 正在运行")
   }
-  console.log("[memory] vLLM 安装完成")
 }
 
-/** 启动 vLLM serve 子进程 */
-function startVllmProcess(): Subprocess {
+/** 检查容器是否已在运行 */
+async function isContainerRunning(): Promise<boolean> {
+  const { code, stdout } = await exec([
+    "docker", "inspect", "-f", "{{.State.Running}}", VLLM_CONTAINER_NAME,
+  ])
+  return code === 0 && stdout === "true"
+}
+
+/** 启动 vLLM Docker 容器 */
+async function startVllmContainer(): Promise<void> {
+  // 先移除同名旧容器（如果存在）
+  await exec(["docker", "rm", "-f", VLLM_CONTAINER_NAME])
+
   const args = [
-    "-m", "vllm.entrypoints.openai.api_server",
+    "docker", "run", "-d",
+    "--name", VLLM_CONTAINER_NAME,
+    "--gpus", VLLM_GPU_COUNT,
+    "--ipc=host",
+    "-p", `${VLLM_PORT}:8000`,
+    "-v", `${process.env.HOME ?? "/root"}/.cache/huggingface:/root/.cache/huggingface`,
+    VLLM_DOCKER_IMAGE,
     "--model", EMBEDDING_MODEL_ID,
     "--task", "embed",
-    "--host", VLLM_HOST,
-    "--port", VLLM_PORT,
+    "--host", "0.0.0.0",
+    "--port", "8000",
   ]
   // 追加用户自定义参数
   if (VLLM_EXTRA_ARGS.trim()) {
     args.push(...VLLM_EXTRA_ARGS.trim().split(/\s+/))
   }
 
-  console.log(`[memory] 启动 vLLM: python3 ${args.join(" ")}`)
-  const proc = spawn(["python3", ...args], {
-    stdout: "inherit",
-    stderr: "inherit",
-  })
-  return proc
+  console.log(`[memory] 启动 vLLM 容器: ${args.join(" ")}`)
+  const { code, stderr } = await exec(args)
+  if (code !== 0) {
+    throw new Error(`[memory] Docker 容器启动失败: ${stderr}`)
+  }
+  console.log(`[memory] 容器 ${VLLM_CONTAINER_NAME} 已启动`)
 }
 
 /** 等待 vLLM 健康检查通过 */
@@ -91,39 +104,40 @@ async function waitForVllm(timeoutSec: number): Promise<void> {
       console.log("[memory] vLLM 服务就绪")
       return
     }
-    // 检查进程是否意外退出
-    if (vllmProcess && vllmProcess.exitCode !== null) {
-      throw new Error(`[memory] vLLM 进程已退出 (exit ${vllmProcess.exitCode})`)
+    // 检查容器是否意外退出
+    const running = await isContainerRunning()
+    if (!running) {
+      const { stdout } = await exec(["docker", "logs", "--tail", "30", VLLM_CONTAINER_NAME])
+      throw new Error(`[memory] vLLM 容器已退出。日志:\n${stdout}`)
     }
-    await new Promise((r) => setTimeout(r, 2000))
+    await new Promise((r) => setTimeout(r, 3000))
   }
   throw new Error(`[memory] vLLM 在 ${timeoutSec}s 内未就绪，启动超时`)
 }
 
-/** 确保 vLLM 可用：检测 → 安装 → 启动 → 等待就绪 */
+/** 确保 vLLM 可用：检测 → Docker 启动 → 等待就绪 */
 async function ensureVllm(): Promise<void> {
   if (vllmReady) return
-  // 如果已经有外部 vLLM 在运行，直接复用
+  // 如果已有 vLLM 服务在运行（外部或之前启动的容器），直接复用
   if (await isVllmHealthy()) {
     vllmReady = true
     console.log("[memory] 检测到已运行的 vLLM 服务，直接复用")
     return
   }
-  // 安装
-  await ensureVllmInstalled()
-  // 启动
-  vllmProcess = startVllmProcess()
-  // 等待就绪（模型首次加载需要下载，可能较久）
+  // 检查 Docker
+  await ensureDocker()
+  // 如果容器存在但未就绪，可能正在加载模型，先检查
+  if (await isContainerRunning()) {
+    console.log("[memory] 容器已在运行，等待就绪 …")
+  } else {
+    await startVllmContainer()
+  }
+  // 等待就绪（含镜像拉取 + 模型下载，可能较久）
   await waitForVllm(VLLM_STARTUP_TIMEOUT)
   vllmReady = true
 }
 
-// 进程退出时清理子进程
-process.on("exit", () => {
-  if (vllmProcess && vllmProcess.exitCode === null) {
-    vllmProcess.kill()
-  }
-})
+// 进程退出时不主动删除容器 —— 让它持续运行供后续复用
 
 // ---------------------------------------------------------------------------
 // vLLM provider（通过 OpenAI 兼容接口访问本地 vLLM 服务）
