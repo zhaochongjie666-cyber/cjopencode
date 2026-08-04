@@ -1,23 +1,25 @@
 import type { Plugin, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
 import { embed, embedMany, cosineSimilarity } from "ai"
-import { createOllama } from "ollama-ai-provider"
+import { createOpenAI } from "@ai-sdk/openai"
 
 // ---------------------------------------------------------------------------
-// 配置 —— 默认使用本地 Ollama 模型，无需远程 API Key
+// 配置 —— 默认使用本地 vLLM 服务（OpenAI 兼容接口）
+// 启动 vLLM:
+//   vllm serve BAAI/bge-m3 --task embed --port 8100
 // ---------------------------------------------------------------------------
-const OLLAMA_BASE_URL = process.env.MEMORY_OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/api"
-const EMBEDDING_MODEL_ID = process.env.MEMORY_EMBEDDING_MODEL ?? "nomic-embed-text"
+const VLLM_BASE_URL = process.env.MEMORY_VLLM_BASE_URL ?? "http://127.0.0.1:8100/v1"
+const EMBEDDING_MODEL_ID = process.env.MEMORY_EMBEDDING_MODEL ?? "BAAI/bge-m3"
 const MAX_MEMORIES = Number(process.env.MEMORY_MAX_ITEMS ?? "2000")
 const TOP_K = Number(process.env.MEMORY_TOP_K ?? "10")
 const RERANK_TOP_N = Number(process.env.MEMORY_RERANK_TOP_N ?? "5")
 const STORE_PATH = process.env.MEMORY_STORE_PATH ?? ""
 
 // ---------------------------------------------------------------------------
-// Ollama provider（本地推理，无需 API Key）
+// vLLM provider（通过 OpenAI 兼容接口访问本地 vLLM 服务）
 // ---------------------------------------------------------------------------
-const ollama = createOllama({ baseURL: OLLAMA_BASE_URL })
-const embeddingModel = ollama.embedding(EMBEDDING_MODEL_ID)
+const vllm = createOpenAI({ baseURL: VLLM_BASE_URL, apiKey: "not-needed" })
+const embeddingModel = vllm.embedding(EMBEDDING_MODEL_ID)
 
 // ---------------------------------------------------------------------------
 // 内存记忆存储
