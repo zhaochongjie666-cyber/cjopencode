@@ -1,16 +1,23 @@
 import type { Plugin, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
-import { embed, embedMany, rerank, cosineSimilarity } from "ai"
+import { embed, embedMany, cosineSimilarity } from "ai"
+import { createOllama } from "ollama-ai-provider"
 
 // ---------------------------------------------------------------------------
-// 配置
+// 配置 —— 默认使用本地 Ollama 模型，无需远程 API Key
 // ---------------------------------------------------------------------------
-const EMBEDDING_MODEL = process.env.MEMORY_EMBEDDING_MODEL ?? "openai/text-embedding-3-small"
-const RERANK_MODEL = process.env.MEMORY_RERANK_MODEL ?? "cohere/rerank-v3.5"
+const OLLAMA_BASE_URL = process.env.MEMORY_OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/api"
+const EMBEDDING_MODEL_ID = process.env.MEMORY_EMBEDDING_MODEL ?? "nomic-embed-text"
 const MAX_MEMORIES = Number(process.env.MEMORY_MAX_ITEMS ?? "2000")
 const TOP_K = Number(process.env.MEMORY_TOP_K ?? "10")
 const RERANK_TOP_N = Number(process.env.MEMORY_RERANK_TOP_N ?? "5")
 const STORE_PATH = process.env.MEMORY_STORE_PATH ?? ""
+
+// ---------------------------------------------------------------------------
+// Ollama provider（本地推理，无需 API Key）
+// ---------------------------------------------------------------------------
+const ollama = createOllama({ baseURL: OLLAMA_BASE_URL })
+const embeddingModel = ollama.embedding(EMBEDDING_MODEL_ID)
 
 // ---------------------------------------------------------------------------
 // 内存记忆存储
@@ -60,12 +67,12 @@ async function restore() {
 // Embedding 辅助
 // ---------------------------------------------------------------------------
 async function embedText(text: string): Promise<number[]> {
-  const { embedding } = await embed({ model: EMBEDDING_MODEL as any, value: text })
+  const { embedding } = await embed({ model: embeddingModel, value: text })
   return embedding
 }
 
 async function embedTexts(texts: string[]): Promise<number[][]> {
-  const { embeddings } = await embedMany({ model: EMBEDDING_MODEL as any, values: texts })
+  const { embeddings } = await embedMany({ model: embeddingModel, values: texts })
   return embeddings
 }
 
@@ -110,27 +117,12 @@ async function searchMemory(
   scored.sort((a, b) => b.score - a.score)
   const candidates = scored.slice(0, topK)
 
-  // 2) Rerank 精排
-  try {
-    const { results } = await rerank({
-      model: RERANK_MODEL as any,
-      query,
-      documents: candidates.map((c) => c.text),
-      topN: rerankTopN,
-    })
-    return results.map((r: any) => ({
-      id: candidates[r.index].id,
-      text: candidates[r.index].text,
-      score: r.relevanceScore ?? r.score ?? 0,
-    }))
-  } catch {
-    // rerank 不可用时降级为 embedding 排序
-    return candidates.slice(0, rerankTopN).map((c) => ({
-      id: c.id,
-      text: c.text,
-      score: c.score,
-    }))
-  }
+  // 精排 —— 本地模式下使用纯 embedding 余弦相似度排序（无需远程 Rerank API）
+  return candidates.slice(0, rerankTopN).map((c) => ({
+    id: c.id,
+    text: c.text,
+    score: c.score,
+  }))
 }
 
 // ---------------------------------------------------------------------------
