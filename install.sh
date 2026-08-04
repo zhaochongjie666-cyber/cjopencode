@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 把 src/ 下的 agents / skills / plugins / commands 安装到 opencode 用户配置目录。
-# 用 symlink，改源码即生效，无需复制。
+# 直接复制文件，避免软链接/硬链接导致 Bun 按源码真实路径解析依赖（plugins 尤需如此）。
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,23 +15,16 @@ for cur in agents skills plugins commands; do
     echo "[install] skip: ${src} 不存在"
     continue
   fi
-  if [[ -L "${dst}" || -e "${dst}" ]]; then
-    echo "[install] unlink existing: ${dst}"
-    rm -f "${dst}"
-  fi
-  ln -snf "${src}" "${dst}"
-  echo "[install] ${src} -> ${dst}"
+  rm -rf "${dst}"
+  cp -r "${src}" "${dst}"
+  echo "[install] copied ${src} -> ${dst}"
 done
 
 src="${REPO_ROOT}/src/SYSTEM_AGENTS.md"
 dst="${TARGET_ROOT}/AGENTS.md"
 if [[ -e "${src}" ]]; then
-  if [[ -L "${dst}" || -e "${dst}" ]]; then
-    echo "[install] unlink existing: ${dst}"
-    rm -f "${dst}"
-  fi
-  ln -snf "${src}" "${dst}"
-  echo "[install] ${src} -> ${dst}"
+  cp "${src}" "${dst}"
+  echo "[install] copied ${src} -> ${dst}"
 fi
 
 echo "[install] done。重启 opencode 生效。"
