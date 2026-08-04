@@ -127,38 +127,43 @@ export const LlmToolsPlugin: Plugin = async (input) => {
             args.synthesis_instruction?.trim() ||
             "对以上多份独立分析进行综合，交叉质疑各方观点，得出最终结论"
 
+          // runTwo sends two sequential messages to a session to maximise KV-cache reuse:
+          // msg1 is the fixed role/instruction (cached across calls), msg2 is the variable content.
+          async function runTwo(sessionID: string, msg1: string, msg2: string): Promise<string> {
+            await run(sessionID, msg1)
+            return run(sessionID, msg2)
+          }
+
           try {
             let sessions = await getOrCreateCrossAuditSessions(ctx.sessionID, count)
 
-            // Run auditors in parallel
-            const auditorPrompt = `${auditInst}\n\n内容:\n${args.content}`
+            // Run auditors in parallel: msg1=fixed instruction (cache hit), msg2=content
             const auditorResults = await Promise.all(
               sessions.auditors.map(async (id, i) => {
                 try {
-                  return await run(id, auditorPrompt)
+                  return await runTwo(id, auditInst, args.content)
                 } catch {
                   // On failure, re-fork this slot only
                   const newID = await forkNew(ctx.sessionID)
                   sessions.auditors[i] = newID
-                  return await run(newID, auditorPrompt)
+                  return await runTwo(newID, auditInst, args.content)
                 }
               }),
             )
 
-            // Build synthesis prompt
+            // Build synthesis content (variable part)
             const auditSection = auditorResults
               .map((r, i) => `## 审计员 ${i + 1} 分析\n${r}`)
               .join("\n\n")
-            const synthesisPrompt = `${synthInst}\n\n${auditSection}`
 
-            // Run synthesizer
+            // Synthesizer: msg1=fixed instruction (cache hit), msg2=audit results
             let summary: string
             try {
-              summary = await run(sessions.synthesizer, synthesisPrompt)
+              summary = await runTwo(sessions.synthesizer, synthInst, auditSection)
             } catch {
               const newSynth = await forkNew(ctx.sessionID)
               sessions.synthesizer = newSynth
-              summary = await run(newSynth, synthesisPrompt)
+              summary = await runTwo(newSynth, synthInst, auditSection)
             }
 
             return [
