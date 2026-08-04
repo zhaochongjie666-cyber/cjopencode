@@ -2,18 +2,128 @@ import type { Plugin, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
 import { embed, embedMany, cosineSimilarity } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
+import { spawn, type Subprocess } from "bun"
 
 // ---------------------------------------------------------------------------
-// 配置 —— 默认使用本地 vLLM 服务（OpenAI 兼容接口）
-// 启动 vLLM:
-//   vllm serve BAAI/bge-m3 --task embed --port 8100
+// 配置
 // ---------------------------------------------------------------------------
-const VLLM_BASE_URL = process.env.MEMORY_VLLM_BASE_URL ?? "http://127.0.0.1:8100/v1"
+const VLLM_HOST = process.env.MEMORY_VLLM_HOST ?? "127.0.0.1"
+const VLLM_PORT = process.env.MEMORY_VLLM_PORT ?? "8100"
+const VLLM_BASE_URL = process.env.MEMORY_VLLM_BASE_URL ?? `http://${VLLM_HOST}:${VLLM_PORT}/v1`
 const EMBEDDING_MODEL_ID = process.env.MEMORY_EMBEDDING_MODEL ?? "BAAI/bge-m3"
 const MAX_MEMORIES = Number(process.env.MEMORY_MAX_ITEMS ?? "2000")
 const TOP_K = Number(process.env.MEMORY_TOP_K ?? "10")
 const RERANK_TOP_N = Number(process.env.MEMORY_RERANK_TOP_N ?? "5")
 const STORE_PATH = process.env.MEMORY_STORE_PATH ?? ""
+const VLLM_STARTUP_TIMEOUT = Number(process.env.MEMORY_VLLM_STARTUP_TIMEOUT ?? "300") // 秒
+const VLLM_EXTRA_ARGS = process.env.MEMORY_VLLM_EXTRA_ARGS ?? "" // 额外 vllm 参数
+
+// ---------------------------------------------------------------------------
+// vLLM 生命周期管理：安装、启动、健康检查
+// ---------------------------------------------------------------------------
+let vllmProcess: Subprocess | null = null
+let vllmReady = false
+
+/** 检查 vLLM 服务是否已在运行 */
+async function isVllmHealthy(): Promise<boolean> {
+  try {
+    const res = await fetch(`http://${VLLM_HOST}:${VLLM_PORT}/health`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/** 通过 pip 安装 vLLM（如果尚未安装） */
+async function ensureVllmInstalled(): Promise<void> {
+  try {
+    const check = spawn(["python3", "-c", "import vllm"], {
+      stdout: "ignore",
+      stderr: "ignore",
+    })
+    const exitCode = await check.exited
+    if (exitCode === 0) return
+  } catch {
+    // python3 不存在或 import 失败，继续安装
+  }
+
+  console.log("[memory] 正在安装 vLLM …")
+  const install = spawn(["pip", "install", "-U", "vllm"], {
+    stdout: "inherit",
+    stderr: "inherit",
+  })
+  const code = await install.exited
+  if (code !== 0) {
+    throw new Error(`[memory] pip install vllm 失败 (exit ${code})`)
+  }
+  console.log("[memory] vLLM 安装完成")
+}
+
+/** 启动 vLLM serve 子进程 */
+function startVllmProcess(): Subprocess {
+  const args = [
+    "-m", "vllm.entrypoints.openai.api_server",
+    "--model", EMBEDDING_MODEL_ID,
+    "--task", "embed",
+    "--host", VLLM_HOST,
+    "--port", VLLM_PORT,
+  ]
+  // 追加用户自定义参数
+  if (VLLM_EXTRA_ARGS.trim()) {
+    args.push(...VLLM_EXTRA_ARGS.trim().split(/\s+/))
+  }
+
+  console.log(`[memory] 启动 vLLM: python3 ${args.join(" ")}`)
+  const proc = spawn(["python3", ...args], {
+    stdout: "inherit",
+    stderr: "inherit",
+  })
+  return proc
+}
+
+/** 等待 vLLM 健康检查通过 */
+async function waitForVllm(timeoutSec: number): Promise<void> {
+  const deadline = Date.now() + timeoutSec * 1000
+  while (Date.now() < deadline) {
+    if (await isVllmHealthy()) {
+      console.log("[memory] vLLM 服务就绪")
+      return
+    }
+    // 检查进程是否意外退出
+    if (vllmProcess && vllmProcess.exitCode !== null) {
+      throw new Error(`[memory] vLLM 进程已退出 (exit ${vllmProcess.exitCode})`)
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+  throw new Error(`[memory] vLLM 在 ${timeoutSec}s 内未就绪，启动超时`)
+}
+
+/** 确保 vLLM 可用：检测 → 安装 → 启动 → 等待就绪 */
+async function ensureVllm(): Promise<void> {
+  if (vllmReady) return
+  // 如果已经有外部 vLLM 在运行，直接复用
+  if (await isVllmHealthy()) {
+    vllmReady = true
+    console.log("[memory] 检测到已运行的 vLLM 服务，直接复用")
+    return
+  }
+  // 安装
+  await ensureVllmInstalled()
+  // 启动
+  vllmProcess = startVllmProcess()
+  // 等待就绪（模型首次加载需要下载，可能较久）
+  await waitForVllm(VLLM_STARTUP_TIMEOUT)
+  vllmReady = true
+}
+
+// 进程退出时清理子进程
+process.on("exit", () => {
+  if (vllmProcess && vllmProcess.exitCode === null) {
+    vllmProcess.kill()
+  }
+})
 
 // ---------------------------------------------------------------------------
 // vLLM provider（通过 OpenAI 兼容接口访问本地 vLLM 服务）
@@ -69,11 +179,13 @@ async function restore() {
 // Embedding 辅助
 // ---------------------------------------------------------------------------
 async function embedText(text: string): Promise<number[]> {
+  await ensureVllm()
   const { embedding } = await embed({ model: embeddingModel, value: text })
   return embedding
 }
 
 async function embedTexts(texts: string[]): Promise<number[][]> {
+  await ensureVllm()
   const { embeddings } = await embedMany({ model: embeddingModel, values: texts })
   return embeddings
 }
