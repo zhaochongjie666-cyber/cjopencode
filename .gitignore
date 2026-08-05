@@ -1,2 +1,3 @@
 tsconfig.check.json
 .xdd/brain/
+node_modules/

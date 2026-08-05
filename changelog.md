@@ -958,3 +958,36 @@ glob / grep / read / skill / task / todowrite / question / webfetch。
 - tsc typecheck 通过（对真实 @opencode-ai/plugin 1.14.41 SDK 类型）。
 - 控制器状态机 smoke test 通过：START->SUBMIT->ADVANCE->complete 全链路 + ROLLBACK 回退 + design Gate 真实文件检查。
 - 插件加载 smoke test 通过：flat entry 只导出 default 函数（避免 opencode legacy loader 对非函数 export 抛错），返回 7 个工具 + event 钩子，工具 execute 正常。
+
+## 2026-08-05 15:20:00 - llm_* 工具重构：不走 Session，vendor opencode LLM Engine + 主会话 Message List 推理
+
+### 变更
+- `src/plugins/llm-tools.ts` 重写：
+  - 删除全部 session.create / fork / 子会话缓存逻辑（childCache / crossAuditCache）
+  - 新增 `resolveSessionModel()`：`session.get` → 当前主 Agent 的 `model.{providerID, id}`
+  - 新增 `resolveProviderEndpoint()`：`config.providers` → `options.baseURL` + `options.apiKey`（env source 兜底；`LLM_INFER_BASE_URL/API_KEY/MODEL` 可覆盖，用于 MiniMax 测试）
+  - 新增 `getConversation()`：主会话 Message List → LLMRequest messages（text-only、过滤纯工具消息、连续同 role 合并）
+  - 新增 `llmInfer()`：`LLM.request` + `LLMClient.generate`（流式收集），协议自动选择（baseURL 含 /anthropic → anthropic-messages，否则 openai-compatible）
+- `src/plugins/llm-vendor/`（新）：vendor 自 `~/ws/opencode/packages/llm/src`（34 文件，裁剪 bedrock/google 等无关 provider）
+  - 本地化 `@opencode-ai/schema/llm` 类型（schema-llm.ts，optional 实现对齐 beta.83）
+  - `index.ts` 显式导出 LLM namespace（规避 tsx CJS 下 export * as 失效）
+- `src/agents/llm-helper.md` 删除（不再使用 subagent）
+- `~/.config/opencode` 安装 effect@4.0.0-beta.83（llm 源码匹配版本，catalog 一致）
+
+### 关键决策
+- 用户要「缓存保证」：直接 fetch 会绕过 opencode 缓存策略 → 改为 vendor opencode 自研 LLM 客户端 `@opencode-ai/llm`（原生推理引擎），完整继承 `applyCachePolicy`（Anthropic/Bedrock 注入 cacheControl ephemeral 断点；OpenAI 系 implicit prefix caching）
+- wire 组装对齐 opencode `openai-chat.ts lowerMessages`：system 合并一条放最前 + 消息按序 append → 前缀逐字节稳定 → provider 侧 prompt cache 必然命中
+- 不走 Session：零会话创建，上下文 = 主会话 Message List 尾部 N 条（旧→新），任务放最后
+
+### 验证 / 反 sham
+- MiniMax M3（anthropic 兼容端点）实跑 3 轮：
+  - 推理 1（首写）：cache_read_input_tokens=128
+  - 推理 2（同前缀新任务）：cache_read_input_tokens=128（**缓存命中实证**，仅新 task 51 tokens 非缓存）
+  - 推理 3（带多轮上下文）：cache_read_input_tokens=128（前缀持续命中）
+- `tsc --noEmit`：llm-tools.ts 自身 0 错误（vendor 源码类型错误为官方原状 460 个，bun 编译不检查类型，不影响运行）
+- install.sh 完整同步后冒烟测试通过（SMOKE OK + cache 命中）
+
+### 遗留事项
+- vendor 依赖 `effect` 需装在 ~/.config/opencode/node_modules（npm install effect@4.0.0-beta.83 --no-save）
+- opencode 升级后需同步 vendor 文件（llm 包源码变更）
+- 主 Agent provider（coding-plan/glm-5.2，OpenAI 兼容协议）尚未实跑验证——MiniMax（Anthropic 协议）已验证缓存命中；OpenAI 协议走 implicit prefix caching（无需标记，前缀稳定即命中）
