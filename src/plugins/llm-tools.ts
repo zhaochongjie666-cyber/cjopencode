@@ -63,6 +63,13 @@ export const LlmToolsPlugin: Plugin = async (input) => {
     return out || "(无输出)"
   }
 
+  // runTwo sends two sequential messages to a session to maximise KV-cache reuse:
+  // msg1 is the fixed role/instruction (cached across calls), msg2 is the variable content.
+  async function runTwo(sessionID: string, msg1: string, msg2: string): Promise<string> {
+    await run(sessionID, msg1)
+    return run(sessionID, msg2)
+  }
+
   return {
     tool: {
       llm_reflect: tool({
@@ -98,6 +105,147 @@ export const LlmToolsPlugin: Plugin = async (input) => {
         },
       }),
 
+      llm_understand_task: tool({
+        description:
+          "LLM 理解需求工具（管理流程第一步）：接收任务描述 + 可选的上下文/探索记录，" +
+          "通过独立子 LLM 产出结构化需求理解：目标、要求、约束、验收标准、关键问题、可行性判断。" +
+          "首次调用 fork 主会话并缓存子会话 ID；后续调用复用同一子会话（KV cache 友好，需求理解历史在子会话中累积）。" +
+          "工作流：llm_understand_task → (work) → llm_reflect_midway → (work) → llm_assess_progress。",
+        args: {
+          task_description: tool.schema.string().describe("任务描述"),
+          context_or_exploration: tool.schema
+            .string()
+            .optional()
+            .describe("可选的上下文/探索笔记（先前调研、约束、相关代码等）"),
+          instruction: tool.schema
+            .string()
+            .optional()
+            .describe('理解指令（默认"分析任务并产出结构化需求理解"）。可覆盖为自定义角色或侧重。'),
+        },
+        async execute(args, ctx) {
+          const inst =
+            args.instruction && args.instruction.trim()
+              ? args.instruction.trim()
+              : "分析任务并产出结构化需求理解"
+          const baseText = `${inst}\n\n## 任务描述\n${args.task_description}` +
+            (args.context_or_exploration && args.context_or_exploration.trim()
+              ? `\n\n## 上下文 / 探索笔记\n${args.context_or_exploration}`
+              : "")
+          const outputFormat =
+            "\n\n## 输出要求（必须按以下中文结构输出）\n" +
+            "1. **目标**：一句话目标；如有子目标，列出。\n" +
+            "2. **要求**：必须满足的功能/非功能需求。\n" +
+            "3. **约束**：硬性边界（技术栈、时间、依赖、兼容性）。\n" +
+            "4. **验收标准**：可观测、可验证的判据。\n" +
+            "5. **关键问题**：需要先回答或澄清的开放问题。\n" +
+            "6. **可行性判断**：可行 / 部分可行 / 不可行 + 简要原因。"
+          const text = `${baseText}${outputFormat}`
+          try {
+            let childID = await getOrCreateChild(ctx.sessionID)
+            try {
+              return await run(childID, text)
+            } catch {
+              childCache.delete(ctx.sessionID)
+              childID = await getOrCreateChild(ctx.sessionID)
+              return await run(childID, text)
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            return `[llm_understand_task] 推理失败: ${msg}`
+          }
+        },
+      }),
+
+      llm_assess_progress: tool({
+        description:
+          "LLM 评估进度工具（管理流程第二步）：接收需求理解 + 当前状态 + 可选产出物，" +
+          "通过独立子 LLM 产出评估报告：完成度百分比、已满足/未满足验收标准、质量风险、下一步行动、交付判定。" +
+          "每次调用都 fork 全新子会话（不累积上下文），确保评估独立、无偏差。" +
+          "工作流：llm_understand_task → (work) → llm_reflect_midway → (work) → llm_assess_progress → 重复直到交付。",
+        args: {
+          task_understanding: tool.schema.string().describe("先前 llm_understand_task 产出的结构化需求理解"),
+          current_state: tool.schema.string().describe("当前进度描述（已做、正在做、卡在哪）"),
+          artifacts: tool.schema
+            .string()
+            .optional()
+            .describe("可选的产出物/证据（代码改动、测试结果、日志、文档片段等摘要）"),
+          instruction: tool.schema
+            .string()
+            .optional()
+            .describe('评估指令（默认"对照需求理解评估当前进度并给出交付判定"）。可覆盖。'),
+        },
+        async execute(args, ctx) {
+          const inst =
+            args.instruction && args.instruction.trim()
+              ? args.instruction.trim()
+              : "对照需求理解评估当前进度并给出交付判定"
+          // 两段消息：msg1 = 固定指令（命中 KV cache），msg2 = 变量内容
+          const variableContent = `## 需求理解\n${args.task_understanding}\n\n## 当前状态\n${args.current_state}` +
+            (args.artifacts && args.artifacts.trim() ? `\n\n## 产出物 / 证据\n${args.artifacts}` : "")
+          const outputFormat =
+            "\n\n## 输出要求（必须按以下中文结构输出）\n" +
+            "1. **完成度**：百分比（0-100%）+ 一句说明。\n" +
+            "2. **已满足验收标准**：列出对应条目。\n" +
+            "3. **未满足验收标准**：列出对应条目 + 缺口。\n" +
+            "4. **质量风险**：潜在缺陷、边界遗漏、可维护性。\n" +
+            "5. **下一步行动**：按优先级排序的具体动作。\n" +
+            "6. **交付判定**：可交付 / 不可交付（差什么）/ 需重做（为什么）。"
+          const variableWithFormat = `${variableContent}${outputFormat}`
+          try {
+            const sessionID = await forkNew(ctx.sessionID)
+            return await runTwo(sessionID, inst, variableWithFormat)
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            return `[llm_assess_progress] 评估失败: ${msg}`
+          }
+        },
+      }),
+
+      llm_reflect_midway: tool({
+        description:
+          "LLM 中途反思工具（管理流程贯穿步骤）：接收当前情况 + 可选原始目标 + 可选担忧，" +
+          "通过独立子 LLM 产出反思结论：路径评估、偏差检测、隐藏风险、备选方案、调整建议、置信度。" +
+          "每次调用都 fork 全新子会话（不累积上下文），保证反思客观无历史污染。" +
+          "工作流：llm_understand_task → (work) → llm_reflect_midway → (work) → llm_assess_progress。",
+        args: {
+          current_situation: tool.schema.string().describe("当前情况描述（进展、卡点、决策点）"),
+          original_goal: tool.schema
+            .string()
+            .optional()
+            .describe("原始目标/需求理解（用于对照判断是否偏离）"),
+          concerns: tool.schema.string().optional().describe("当前担忧/疑问（可选）"),
+          instruction: tool.schema
+            .string()
+            .optional()
+            .describe('反思指令（默认"对当前情况进行中途反思，识别偏离与风险并给出调整建议"）。可覆盖。'),
+        },
+        async execute(args, ctx) {
+          const inst =
+            args.instruction && args.instruction.trim()
+              ? args.instruction.trim()
+              : "对当前情况进行中途反思，识别偏离与风险并给出调整建议"
+          const variableContent = `## 当前情况\n${args.current_situation}` +
+            (args.original_goal && args.original_goal.trim() ? `\n\n## 原始目标\n${args.original_goal}` : "") +
+            (args.concerns && args.concerns.trim() ? `\n\n## 担忧 / 疑问\n${args.concerns}` : "")
+          const outputFormat =
+            "\n\n## 输出要求（必须按以下中文结构输出）\n" +
+            "1. **路径评估**：当前路径能否达成目标？顺/逆/卡。\n" +
+            "2. **偏差检测**：与原始目标/需求的偏离点（若有）。\n" +
+            "3. **隐藏风险**：未显化但可能爆雷的问题。\n" +
+            "4. **备选方案**：若继续走不通，列出 2-3 个替代路径。\n" +
+            "5. **调整建议**：具体动作（继续/转向/暂停/回滚）。\n" +
+            "6. **置信度**：高/中/低 + 简要原因。"
+          const variableWithFormat = `${variableContent}${outputFormat}`
+          try {
+            const sessionID = await forkNew(ctx.sessionID)
+            return await runTwo(sessionID, inst, variableWithFormat)
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            return `[llm_reflect_midway] 反思失败: ${msg}`
+          }
+        },
+      }),
+
       llm_cross_audit: tool({
         description:
           "LLM 交叉审计工具：将给定内容同时发送给多个独立的子 LLM（默认 3 个）并行分析，" +
@@ -127,12 +275,7 @@ export const LlmToolsPlugin: Plugin = async (input) => {
             args.synthesis_instruction?.trim() ||
             "对以上多份独立分析进行综合，交叉质疑各方观点，得出最终结论"
 
-          // runTwo sends two sequential messages to a session to maximise KV-cache reuse:
-          // msg1 is the fixed role/instruction (cached across calls), msg2 is the variable content.
-          async function runTwo(sessionID: string, msg1: string, msg2: string): Promise<string> {
-            await run(sessionID, msg1)
-            return run(sessionID, msg2)
-          }
+          // runTwo 复用外层定义（两段消息，固定指令命中 KV cache）
 
           try {
             let sessions = await getOrCreateCrossAuditSessions(ctx.sessionID, count)
