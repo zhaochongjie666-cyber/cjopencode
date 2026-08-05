@@ -3,6 +3,8 @@ import { tool } from "@opencode-ai/plugin"
 
 const DEFAULT_INSTRUCTION = "思考你的作为"
 const SUBAGENT_NAME = "llm-helper"
+const PARENT_CONTEXT_MESSAGES = 8
+const PARENT_PER_MSG_CHARS = 1200
 
 const childCache = new Map<string, string>()
 
@@ -15,26 +17,32 @@ const crossAuditCache = new Map<string, CrossAuditSessions>()
 export const LlmToolsPlugin: Plugin = async (input) => {
   const { client } = input
 
-  // subagent 派发：fork 主 agent 会话作为 subagent 会话——
-  // session.fork 完整复制主会话历史（继承主 Agent 的上下文），
-  // 在 fork 出的会话上以 llm-helper subagent 身份 prompt，结果返回主 agent。
-  async function createSubagentChild(parentID: string): Promise<string> {
-    const forked = await client.session.fork({ path: { id: parentID } })
-    const childID = forked.data?.id
-    if (!childID) throw new Error("fork 未返回子会话 ID")
+  // subagent 派发：与 opencode 原生 task tool 同构——
+  // session.create({ parentID, agent })：parentID 指向主会话（TUI/Web 会显示
+  // 该会话为主 Agent 的 Sub Agent，经 session.children 按 parent_id 查询），
+  // agent 在创建时绑定 llm-helper。
+  // 注意：不能依赖 session.fork——fork 不复制 parentID（fork 源码 createNext 未传
+  // parentID），且无 API 能事后补 parentID，fork 出的会话会显示为顶层会话。
+  async function createSubagentChild(parentID: string, title: string): Promise<string> {
+    const created = await client.session.create({
+      // v1 SDK 类型只暴露 parentID/title，但 HTTP API 接受 agent 字段（见 Session.CreateInput）
+      body: { parentID, title, agent: SUBAGENT_NAME } as never,
+    })
+    const childID = created.data?.id
+    if (!childID) throw new Error("create 未返回子会话 ID")
     return childID
   }
 
-  async function getOrCreateChild(parentID: string): Promise<string> {
+  async function getOrCreateChild(parentID: string, title: string): Promise<string> {
     const cached = childCache.get(parentID)
     if (cached) return cached
-    const childID = await createSubagentChild(parentID)
+    const childID = await createSubagentChild(parentID, title)
     childCache.set(parentID, childID)
     return childID
   }
 
-  async function forkNew(parentID: string): Promise<string> {
-    return createSubagentChild(parentID)
+  async function forkNew(parentID: string, title: string): Promise<string> {
+    return createSubagentChild(parentID, title)
   }
 
   async function getOrCreateCrossAuditSessions(
@@ -43,8 +51,12 @@ export const LlmToolsPlugin: Plugin = async (input) => {
   ): Promise<CrossAuditSessions> {
     const cached = crossAuditCache.get(parentID)
     if (cached && cached.auditors.length === auditorCount) return cached
-    const forkPromises = Array.from({ length: auditorCount + 1 }, () => forkNew(parentID))
-    const ids = await Promise.all(forkPromises)
+    const titles = Array.from({ length: auditorCount }, (_, i) => `交叉审计员 ${i + 1} (@${SUBAGENT_NAME})`)
+    const promises = [
+      ...titles.map((t) => createSubagentChild(parentID, t)),
+      createSubagentChild(parentID, `交叉审计汇总 (@${SUBAGENT_NAME})`),
+    ]
+    const ids = await Promise.all(promises)
     const sessions: CrossAuditSessions = {
       auditors: ids.slice(0, auditorCount),
       synthesizer: ids[auditorCount],
@@ -53,18 +65,54 @@ export const LlmToolsPlugin: Plugin = async (input) => {
     return sessions
   }
 
-  // 拼装 subagent 提示：msg1 = 固定指令（缓存命中），msg2 = 任务内容。
-  async function runTwo(sessionID: string, msg1: string, msg2: string): Promise<string> {
+  // 拉取主会话最近 N 条消息，序列化为紧凑文本——作为 subagent 的"主会话上下文"。
+  // create 出的子会话是空会话（无历史），主会话上下文必须显式注入。
+  async function getParentContext(parentID: string): Promise<string> {
+    try {
+      const res = await client.session.messages({
+        path: { id: parentID },
+        query: { limit: PARENT_CONTEXT_MESSAGES },
+      })
+      const data = (res.data ?? []) as Array<{
+        info: { role?: string }
+        parts: Array<{ type: string; text?: string }>
+      }>
+      const lines: string[] = []
+      for (const m of data) {
+        const role = m.info?.role ?? "unknown"
+        const text = (m.parts ?? [])
+          .filter((p) => p.type === "text" && typeof p.text === "string")
+          .map((p) => p.text as string)
+          .join("\n")
+          .trim()
+        if (!text) continue
+        const clipped = text.length > PARENT_PER_MSG_CHARS ? `${text.slice(0, PARENT_PER_MSG_CHARS)}…` : text
+        lines.push(`[${role}] ${clipped}`)
+      }
+      if (lines.length === 0) return "(主会话上下文为空)"
+      return lines.reverse().join("\n\n")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return `(主会话上下文拉取失败: ${msg})`
+    }
+  }
+
+  // 拼装 subagent 提示：msg1 = 固定指令（缓存命中），msg2 = 主会话上下文 + 任务内容。
+  async function runTwo(
+    sessionID: string,
+    msg1: string,
+    parentContext: string,
+    msg2: string,
+  ): Promise<string> {
     await run(sessionID, msg1)
-    return run(sessionID, msg2)
+    return run(sessionID, `## 主会话上下文\n${parentContext}\n\n## 当前任务\n${msg2}`)
   }
 
   async function run(sessionID: string, text: string): Promise<string> {
-    // 在 fork 出的子会话上以 llm-helper subagent 身份 prompt
+    // 子会话已在 create 时绑定 agent=llm-helper，prompt 不再重复指定
     const res = await client.session.prompt({
       path: { id: sessionID },
       body: {
-        agent: SUBAGENT_NAME,
         parts: [{ type: "text", text }],
       },
     })
@@ -82,9 +130,9 @@ export const LlmToolsPlugin: Plugin = async (input) => {
       llm_reflect: tool({
         description:
           "LLM 自省工具：基于当前主会话上下文发起一次独立 LLM 推理并返回结果。" +
-          "subagent 形式——首次调用 fork 主 agent 会话（继承完整上下文）作为 subagent 会话并缓存；" +
+          "subagent 形式——首次调用 create 一个 Sub Agent 会话（parentID 指向主会话，TUI/Web 显示为主 Agent 的 Sub Agent）并缓存；" +
           "后续调用复用同一子会话，使 prompt_cache_key 稳定以命中 KV/prompt 缓存，" +
-          "且自省历史在子会话中累积。结果返回主 agent。",
+          "且自省历史在子会话中累积。主会话上下文显式注入，结果返回主 agent。",
         args: {
           context: tool.schema.string().describe("要自省的内容/上下文"),
           instruction: tool.schema
@@ -97,15 +145,15 @@ export const LlmToolsPlugin: Plugin = async (input) => {
             args.instruction && args.instruction.trim() ? args.instruction.trim() : DEFAULT_INSTRUCTION
           const task = `${inst}\n\n## 要自省的内容\n${args.context}`
           try {
-            let childID = await getOrCreateChild(ctx.sessionID)
+            let childID = await getOrCreateChild(ctx.sessionID, `LLM 自省 (@${SUBAGENT_NAME})`)
             try {
-              
-              return await runTwo(childID, inst, task)
+              const parentContext = await getParentContext(ctx.sessionID)
+              return await runTwo(childID, inst, parentContext, task)
             } catch {
               childCache.delete(ctx.sessionID)
-              childID = await getOrCreateChild(ctx.sessionID)
-              
-              return await runTwo(childID, inst, task)
+              childID = await getOrCreateChild(ctx.sessionID, `LLM 自省 (@${SUBAGENT_NAME})`)
+              const parentContext = await getParentContext(ctx.sessionID)
+              return await runTwo(childID, inst, parentContext, task)
             }
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e)
@@ -117,8 +165,8 @@ export const LlmToolsPlugin: Plugin = async (input) => {
       llm_understand_task: tool({
         description:
           "LLM 理解需求工具（管理流程第一步）：接收任务描述 + 可选的上下文/探索记录。" +
-          "subagent 形式——首次调用 fork 主 agent 会话（继承完整上下文）作为 subagent 会话并缓存；后续调用复用同一子会话" +
-          "（KV cache 友好，需求理解历史在子会话中累积）。结果返回主 agent。" +
+          "subagent 形式——首次调用 create 一个 Sub Agent 会话（parentID 指向主会话，TUI/Web 显示为主 Agent 的 Sub Agent）并缓存；后续调用复用同一子会话" +
+          "（KV cache 友好，需求理解历史在子会话中累积）。主会话上下文显式注入，结果返回主 agent。" +
           "工作流：llm_understand_task → (work) → llm_reflect_midway → (work) → llm_assess_progress。",
         args: {
           task_description: tool.schema.string().describe("任务描述"),
@@ -150,13 +198,15 @@ export const LlmToolsPlugin: Plugin = async (input) => {
             "6. **可行性判断**：可行 / 部分可行 / 不可行 + 简要原因。"
           const task = `${taskBody}${outputFormat}`
           try {
-            let childID = await getOrCreateChild(ctx.sessionID)
+            let childID = await getOrCreateChild(ctx.sessionID, `LLM 理解任务 (@${SUBAGENT_NAME})`)
             try {
-              return await runTwo(childID, inst, task)
+              const parentContext = await getParentContext(ctx.sessionID)
+              return await runTwo(childID, inst, parentContext, task)
             } catch {
               childCache.delete(ctx.sessionID)
-              childID = await getOrCreateChild(ctx.sessionID)
-              return await runTwo(childID, inst, task)
+              childID = await getOrCreateChild(ctx.sessionID, `LLM 理解任务 (@${SUBAGENT_NAME})`)
+              const parentContext = await getParentContext(ctx.sessionID)
+              return await runTwo(childID, inst, parentContext, task)
             }
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e)
@@ -168,8 +218,8 @@ export const LlmToolsPlugin: Plugin = async (input) => {
       llm_assess_progress: tool({
         description:
           "LLM 评估进度工具（管理流程第二步）：接收需求理解 + 当前状态 + 可选产出物。" +
-          "subagent 形式——每次调用都 fork 主 agent 会话（继承完整上下文）作为全新 subagent 会话（不累积上下文），" +
-          "以 agent=llm-helper 身份处理，结果返回主 agent，确保评估独立、无偏差。" +
+          "subagent 形式——每次调用都 create 一个全新的 Sub Agent 会话（parentID 指向主会话，TUI/Web 显示为主 Agent 的 Sub Agent，不累积上下文），" +
+          "主会话上下文显式注入，结果返回主 agent，确保评估独立、无偏差。" +
           "工作流：llm_understand_task → (work) → llm_reflect_midway → (work) → llm_assess_progress → 重复直到交付。",
         args: {
           task_understanding: tool.schema.string().describe("先前 llm_understand_task 产出的结构化需求理解"),
@@ -200,8 +250,9 @@ export const LlmToolsPlugin: Plugin = async (input) => {
             "6. **交付判定**：可交付 / 不可交付（差什么）/ 需重做（为什么）。"
           const task = `${taskBody}${outputFormat}`
           try {
-            const sessionID = await forkNew(ctx.sessionID)
-            return await runTwo(sessionID, inst, task)
+            const sessionID = await forkNew(ctx.sessionID, `LLM 评估进度 (@${SUBAGENT_NAME})`)
+            const parentContext = await getParentContext(ctx.sessionID)
+            return await runTwo(sessionID, inst, parentContext, task)
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e)
             return `[llm_assess_progress] 评估失败: ${msg}`
@@ -212,8 +263,8 @@ export const LlmToolsPlugin: Plugin = async (input) => {
       llm_reflect_midway: tool({
         description:
           "LLM 中途反思工具（管理流程贯穿步骤）：接收当前情况 + 可选原始目标 + 可选担忧。" +
-          "subagent 形式——每次调用都 fork 主 agent 会话（继承完整上下文）作为全新 subagent 会话（不累积上下文），" +
-          "以 agent=llm-helper 身份处理，结果返回主 agent，保证反思客观无历史污染。" +
+          "subagent 形式——每次调用都 create 一个全新的 Sub Agent 会话（parentID 指向主会话，TUI/Web 显示为主 Agent 的 Sub Agent，不累积上下文），" +
+          "主会话上下文显式注入，结果返回主 agent，保证反思客观无历史污染。" +
           "工作流：llm_understand_task → (work) → llm_reflect_midway → (work) → llm_assess_progress。",
         args: {
           current_situation: tool.schema.string().describe("当前情况描述（进展、卡点、决策点）"),
@@ -245,8 +296,9 @@ export const LlmToolsPlugin: Plugin = async (input) => {
             "6. **置信度**：高/中/低 + 简要原因。"
           const task = `${taskBody}${outputFormat}`
           try {
-            const sessionID = await forkNew(ctx.sessionID)
-            return await runTwo(sessionID, inst, task)
+            const sessionID = await forkNew(ctx.sessionID, `LLM 中途反思 (@${SUBAGENT_NAME})`)
+            const parentContext = await getParentContext(ctx.sessionID)
+            return await runTwo(sessionID, inst, parentContext, task)
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e)
             return `[llm_reflect_midway] 反思失败: ${msg}`
@@ -258,8 +310,8 @@ export const LlmToolsPlugin: Plugin = async (input) => {
         description:
           "LLM 交叉审计工具：将给定内容同时发送给多个独立的 subagent（默认 3 个）并行分析，" +
           "再由一个独立的汇总 subagent 对所有分析结果进行综合与交叉质疑，最终返回汇总报告。" +
-          "每个 subagent 均从主会话 fork（继承主 Agent 完整上下文），" +
-          "以 agent=llm-helper 身份处理；后续调用复用以保持 KV cache。",
+          "每个 subagent 均从主会话 create（parentID 指向主会话，TUI/Web 显示为主 Agent 的 Sub Agent），" +
+          "以 agent=llm-helper 身份处理，主会话上下文显式注入；后续调用复用以保持 KV cache。",
         args: {
           content: tool.schema.string().describe("要审计/分析的内容"),
           auditor_count: tool.schema
@@ -286,15 +338,16 @@ export const LlmToolsPlugin: Plugin = async (input) => {
 
           try {
             let sessions = await getOrCreateCrossAuditSessions(ctx.sessionID, count)
+            const parentContext = await getParentContext(ctx.sessionID)
 
             const auditorResults = await Promise.all(
               sessions.auditors.map(async (id, i) => {
                 try {
-                  return await runTwo(id, auditInst, args.content)
+                  return await runTwo(id, auditInst, parentContext, args.content)
                 } catch {
-                  const newID = await createSubagentChild(ctx.sessionID)
+                  const newID = await createSubagentChild(ctx.sessionID, `交叉审计员 ${i + 1} (@${SUBAGENT_NAME})`)
                   sessions.auditors[i] = newID
-                  return await runTwo(newID, auditInst, args.content)
+                  return await runTwo(newID, auditInst, parentContext, args.content)
                 }
               }),
             )
@@ -305,11 +358,14 @@ export const LlmToolsPlugin: Plugin = async (input) => {
 
             let summary: string
             try {
-              summary = await runTwo(sessions.synthesizer, synthInst, auditSection)
+              summary = await runTwo(sessions.synthesizer, synthInst, parentContext, auditSection)
             } catch {
-              const newSynth = await createSubagentChild(ctx.sessionID)
+              const newSynth = await createSubagentChild(
+                ctx.sessionID,
+                `交叉审计汇总 (@${SUBAGENT_NAME})`,
+              )
               sessions.synthesizer = newSynth
-              summary = await runTwo(newSynth, synthInst, auditSection)
+              summary = await runTwo(newSynth, synthInst, parentContext, auditSection)
             }
 
             return [
