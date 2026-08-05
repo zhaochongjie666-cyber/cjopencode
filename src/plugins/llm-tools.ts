@@ -17,12 +17,14 @@ const crossAuditCache = new Map<string, CrossAuditSessions>()
 export const LlmToolsPlugin: Plugin = async (input) => {
   const { client } = input
 
-  // subagent 模式：从主会话派生一个轻量子会话（仅 parentID 链接，不复制历史）。
-  // 与 session.fork 不同，create 出的子会话是独立的，无消息历史——主会话上下文由
-  // 调用方通过 getParentContext 串成文本作为 prompt 一部分传入。
+  // subagent 派发：与 opencode 原生 task tool 同构——
+  // session.create({ parentID, agent }) 在创建时绑定副 agent（llm-helper），
+  // 后续 prompt 直接发给该子会话即可，无需再切 agent。
+  // 不复制主会话历史（仅 parentID 链接）；主会话上下文由 getParentContext 显式注入。
   async function createSubagentChild(parentID: string, title: string): Promise<string> {
     const created = await client.session.create({
-      body: { parentID, title },
+      // v1 SDK 类型只暴露 parentID/title，但 HTTP API 接受 agent 字段（见 Session.CreateInput）
+      body: { parentID, title, agent: SUBAGENT_NAME } as never,
     })
     const childID = created.data?.id
     if (!childID) throw new Error("create 未返回子会话 ID")
@@ -105,10 +107,10 @@ export const LlmToolsPlugin: Plugin = async (input) => {
   }
 
   async function run(sessionID: string, text: string): Promise<string> {
+    // 子会话已在 create 时绑定 agent=llm-helper，prompt 不再重复指定
     const res = await client.session.prompt({
       path: { id: sessionID },
       body: {
-        agent: SUBAGENT_NAME,
         parts: [{ type: "text", text }],
       },
     })
