@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-06 - llm_* 工具设计评审修复：缓存窗口 / 依赖自愈 / 中断接入
+
+### 变更
+- `src/plugins/llm-tools.ts`：
+  - `PARENT_CONTEXT_MESSAGES=30`（尾部窗口）→ `CONTEXT_MESSAGES_LIMIT=10000`（取全量）：窗口滑动会让新请求前缀整体左移、旧缓存全部失效重写，全量保证前缀严格只增不减 → implicit prompt cache 持续命中
+  - 新增 `MAX_MESSAGE_CHARS=8192` 单条截断（防大文件内容 token 爆炸）
+  - 新增 `runWithAbort`：`Fiber.runFork` + abort 事件 → `Fiber.interrupt`（effect FetchHttpClient 的 interruption 语义自动 abort fetch），5 个工具全部接入 `ctx.abort`
+  - Anthropic 兼容分支 baseURL 规范化：MiniMax 官方 baseURL（…/anthropic）缺 `/v1`，自动补 `/v1`（404 修复，验证中发现）
+- `install.sh`：检测 `node_modules/effect` 缺失时自动 `npm install`（依赖自愈）
+- `~/.config/opencode/package.json`：`effect@4.0.0-beta.83` 写入 dependencies（原先 --no-save 无记录，依赖漂移风险）
+- 新增 `src/plugins/llm-vendor/README.md`：vendor 来源记录（llm@1.18.5 + commit 7534d23551 + 裁剪清单 + 同步方法）
+
+### 关键决策
+- 缓存保证优先于 token 成本：implicit prefix cache 是前缀缓存，头部裁剪必碎 → 全量上下文 + 单条截断控总量，context 上限由模型兜底
+- 中断走 effect fiber interrupt 而非手写 AbortController：复用 FetchHttpClient 内建 interruption → abort 语义，与主会话取消行为一致
+
+### 验证 / 反 sham
+- MiniMax M3 实测：R1 首写 `cacheReadInputTokens=128`，R2 复用同前缀 `cacheReadInputTokens=128`（仅新 task 55 tokens 非缓存）→ 前缀稳定命中实证
+- abort 实测：请求发出 500ms 后 abort，503ms 即返回 `AbortError 已取消`（未等请求完成）
+- tsc 0 错误；install.sh 依赖检测生效（不重复 npm install）
+
+### 遗留事项
+- coding-plan（OpenAI 兼容协议）`cached_tokens` 实测待 2026-08-12 配额重置
+- P2 未修：工具消息链丢失（tool-call 上下文）、cross_audit 并行限流退避
+
 ## 2026-07-29 14:33:59 - SYSTEM_AGENTS.md：补 design 产物清单（gherkin / wire / 架构等）
 
 ### 变更

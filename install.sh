@@ -27,4 +27,11 @@ if [[ -e "${src}" ]]; then
   echo "[install] copied ${src} -> ${dst}"
 fi
 
+# 插件依赖：llm-vendor 需要 effect@4.0.0-beta.83（package.json 已锁定版本）。
+# 缺失时按 package.json 安装全部依赖（新环境 / 清过 node_modules 后自愈）。
+if [[ ! -d "${TARGET_ROOT}/node_modules/effect" ]]; then
+  echo "[install] 检测到缺少插件依赖 effect，执行 npm install ..."
+  (cd "${TARGET_ROOT}" && npm install)
+fi
+
 echo "[install] done。重启 opencode 生效。"

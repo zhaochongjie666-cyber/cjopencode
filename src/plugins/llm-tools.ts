@@ -1,14 +1,18 @@
 /// <reference types="bun-types" />
 import type { Plugin, PluginInput, ToolDefinition } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
-import { Effect, Layer } from "effect"
+import { Effect, Fiber, Layer } from "effect"
 import { LLM, LLMClient, Message, SystemPart } from "./llm-vendor/index"
 import * as OpenAICompatible from "./llm-vendor/providers/openai-compatible"
 import * as Anthropic from "./llm-vendor/providers/anthropic"
 import { RequestExecutor } from "./llm-vendor/route/executor"
 
 const DEFAULT_INSTRUCTION = "思考你的作为"
-const PARENT_CONTEXT_MESSAGES = 30
+// 上下文窗口取「全部」（大值兜底）：implicit prompt cache 要求前缀严格只增不减。
+// 窗口滑动（旧消息被丢弃）会让每次新请求的前缀整体左移，之前缓存全部失效重写 —— 故禁用尾部窗口。
+const CONTEXT_MESSAGES_LIMIT = 10000
+// 单条消息字符上限：防止大文件内容全量进 context（token 爆炸），总量由模型 context 兜底。
+const MAX_MESSAGE_CHARS = 8192
 const MAX_TOKENS = 4096
 
 // 推理层装配：LLMClient.Service 由 RequestExecutor.Service（基于 effect FetchHttpClient）提供。
@@ -56,7 +60,7 @@ async function resolveProviderEndpoint(
   return { baseURL, apiKey }
 }
 
-// 主会话 Message List → LLMRequest messages（text-only，过滤纯工具消息，连续同 role 合并）。
+// 主会话 Message List → LLMRequest messages（text-only，过滤纯工具消息，连续同 role 合并，单条截断）。
 // 组装对齐 opencode openai-chat.ts lowerMessages：system 在前 + 消息按序 append，
 // 保证 wire 前缀稳定 → provider implicit prompt cache 命中。
 async function getConversation(
@@ -81,6 +85,7 @@ async function getConversation(
         .map((p) => p.text as string)
         .join("\n")
         .trim()
+        .slice(0, MAX_MESSAGE_CHARS)
       if (!text) continue
       const last = out[out.length - 1]
       if (last && last.role === role) last.text += `\n${text}`
@@ -93,6 +98,25 @@ async function getConversation(
   }
 }
 
+// fiber 中断 → effect FetchHttpClient 自动 abort fetch（interruption 语义）：
+// 与主会话取消行为等价 —— 中断即停止请求，不浪费 token。
+async function runWithAbort<A>(effect: Effect.Effect<A>, signal?: AbortSignal): Promise<A> {
+  if (signal?.aborted) throw new DOMException("已取消", "AbortError")
+  if (!signal) return Effect.runPromise(effect)
+  const fiber = Effect.runFork(effect)
+  const aborted = new Promise<never>((_, reject) => {
+    signal.addEventListener(
+      "abort",
+      () => {
+        void Effect.runPromise(Fiber.interrupt(fiber)).catch(() => {})
+        reject(new DOMException("已取消", "AbortError"))
+      },
+      { once: true },
+    )
+  })
+  return Promise.race([Effect.runPromise(Fiber.join(fiber)), aborted])
+}
+
 // 走 vendor 的 opencode LLM Engine：LLM.request（request.ts 同构组装）→
 // LLMClient.generate（内部 = stream 流式收集 + applyCachePolicy 缓存策略）。
 // 返回完整文本。
@@ -102,6 +126,7 @@ async function llmInfer(
   systemText: string,
   conversation: Array<{ role: "user" | "assistant"; text: string }>,
   task: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const { providerID, modelID } = await resolveSessionModel(client, sessionID)
   const { baseURL, apiKey } = await resolveProviderEndpoint(client, providerID)
@@ -111,8 +136,13 @@ async function llmInfer(
   // 协议（cache-policy 会注入 cacheControl ephemeral 断点）；否则走 OpenAI 兼容
   // （opencode 默认 npm=@ai-sdk/openai-compatible，implicit prefix caching）。
   const isAnthropicEndpoint = baseURL.includes("/anthropic")
+  // Anthropic 兼容协议的 messages URL = baseURL + /v1/messages（官方 baseURL 含 /v1）；
+  // MiniMax 官方 baseURL（…/anthropic）缺 /v1，需规范化补上。
+  const anthropicBaseURL = isAnthropicEndpoint && !/\/v\d+$/.test(baseURL.replace(/\/+$/, ""))
+    ? `${baseURL.replace(/\/+$/, "")}/v1`
+    : baseURL
   const model = isAnthropicEndpoint
-    ? Anthropic.configure({ apiKey, baseURL }).model(envModel ?? modelID)
+    ? Anthropic.configure({ apiKey, baseURL: anthropicBaseURL }).model(envModel ?? modelID)
     : OpenAICompatible.configure({ apiKey, baseURL, provider: providerID }).model(envModel ?? modelID)
 
   const messages = [
@@ -127,8 +157,9 @@ async function llmInfer(
     generation: { maxTokens: MAX_TOKENS },
   })
 
-  const response = await Effect.runPromise(
+  const response = await runWithAbort(
     LLMClient.generate(request).pipe(Effect.provide(LLM_CLIENT_LAYERS)),
+    signal,
   )
   const text = response.text.trim()
   if (!text) throw new Error("推理无输出")
@@ -139,9 +170,9 @@ export const LlmToolsPlugin: Plugin = async (input) => {
   const { client } = input
 
   // 一次推理：主会话 Message List 上下文 + 结构化任务。
-  async function infer(ctx: { sessionID: string }, systemText: string, task: string): Promise<string> {
-    const conversation = await getConversation(client, ctx.sessionID, PARENT_CONTEXT_MESSAGES)
-    return llmInfer(client, ctx.sessionID, systemText, conversation, task)
+  async function infer(ctx: { sessionID: string; abort?: AbortSignal }, systemText: string, task: string): Promise<string> {
+    const conversation = await getConversation(client, ctx.sessionID, CONTEXT_MESSAGES_LIMIT)
+    return llmInfer(client, ctx.sessionID, systemText, conversation, task, ctx.abort)
   }
 
   return {
@@ -349,7 +380,7 @@ export const LlmToolsPlugin: Plugin = async (input) => {
             args.synthesis_instruction?.trim() || "对以上多份独立分析进行综合，交叉质疑各方观点，得出最终结论"
 
           try {
-            const conversation = await getConversation(client, ctx.sessionID, PARENT_CONTEXT_MESSAGES)
+            const conversation = await getConversation(client, ctx.sessionID, CONTEXT_MESSAGES_LIMIT)
             const auditResults = await Promise.all(
               Array.from({ length: count }, (_, i) =>
                 llmInfer(
@@ -358,6 +389,7 @@ export const LlmToolsPlugin: Plugin = async (input) => {
                   "你是 llm_* 工具的交叉审计引擎，请独立深入分析并指出问题、风险和改进建议，输出中文。",
                   conversation,
                   `${auditInst}\n\n## 要审计的内容\n${args.content}`,
+                  ctx.abort,
                 ),
               ),
             )
@@ -368,6 +400,7 @@ export const LlmToolsPlugin: Plugin = async (input) => {
               "你是 llm_* 工具的审计汇总引擎，请综合交叉质疑各方观点并给出最终结论，输出中文。",
               conversation,
               `${synthInst}\n\n${auditSection}`,
+              ctx.abort,
             )
             return [`# 交叉审计报告`, ``, auditSection, ``, `## 综合与交叉质疑`, summary].join("\n")
           } catch (e) {
