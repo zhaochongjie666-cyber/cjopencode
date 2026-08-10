@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-08-10 - cj-brain v2：注入点迁移（保证缓存命中）+ 融入 opencode 体系
+
+### 变更
+- `src/plugins/cj-brain.ts` 重写：注入点从 `experimental.chat.system.transform` → `experimental.chat.messages.transform`（动态状态追加到最后一条 user 消息尾部）
+- 新增生命周期 hooks：`event`（session.created 建映射含 parentID / session.deleted 清理）、`dispose`（清空）、`experimental.session.compacting`（reset 计数）
+- 配置化：读 `options`（opencode.json 配 `["cj-brain",{targetAgent,debug}]`），targetAgent/debug 不再硬编码
+- per-sessionID 独立状态 + isSubagent/parentID 字段；event hook 第一行早返回防每-token-delta 开销
+
+### 关键决策：为什么不能用 system.transform 注入动态内容（反直觉）
+探查明一个致命问题——往 `output.system` 每轮 push 变化内容，对 **Anthropic 兼容协议（含 MiniMax）缓存是全废的**：
+- opencode 把 system 组装成 `[header]`，插件 push 后变 `[header, inject]`
+- `applyCachePolicy.markLastSystem`（llm-vendor/cache-policy.ts:54-59）把 cache_control 打在**最后一个** system part = 打在动态 inject 块上
+- 动态块每轮变（轮次号/工具列表）→ 断点覆盖内容永不 byte-identical → Anthropic 每轮 system 缓存只 write 不 read
+- OpenAI implicit prefix caching 反而没事（header 是稳定前缀，注入在尾部不影响前缀命中），但 Anthropic 全废
+
+**正确做法**：动态状态注入到最后一条 user 消息尾部——那里本就是 Anthropic 的 cache 边界（`messages:"latest-user-message"`，cache-policy.ts:18,91）+ OpenAI 非缓存尾部，放变化内容是"预期会变"的位置，不扰动任何已缓存前缀。system（header + cj.md）保持跨轮 byte-identical → 完整缓存命中。对标 opencode 自身：compaction/summary 的动态内容都走 messages，从不注主 loop system。
+
+### 融入 opencode 体系（逐项对标原生模式）
+| 缺陷 | 对标的 opencode 模式 | 位置 |
+|---|---|---|
+| 状态泄漏 | CodexAuthPlugin 的 event(session.deleted) 清理 | codex.ts:274-277 |
+| 进程关闭清理 | CodexAuthPlugin 的 dispose | codex.ts:270-273 |
+| agent 映射 | session.created 事件（含 parentID） | session.ts:537 |
+| compaction 兼容 | experimental.session.compacting hook | compaction.ts:343 |
+| per-session 状态 | SessionStatus/SessionRunState 也用 Map | status.ts / run-state.ts |
+| 配置 | Plugin 第 2 参数 options（opencode.json tuple） | plugin/index.ts:114 |
+
+### sessionID 获取（解决 messages.transform input 为 {} 的难题）
+messages.transform 的 input 是 `{}`（无 sessionID），但 `output.messages[0].info.sessionID` 可用（Message.info 含 sessionID，schema/v1/session.ts:327 messageBase）。第一条消息的 sessionID 即当前 session。
+
+### 待用户 TUI 验收
+- 切 cj 跑多轮任务，`CJ_BRAIN_DEBUG=1` 看：session.created 建映射、messages.transform 每轮注入到 user 消息尾部、session.deleted 清理
+- **缓存验证**：看 provider 响应的 `cache_read_input_tokens`，多轮后应稳定非零（v1 每轮为 0/只 write）
+
 ## 2026-08-06 - llm_* 工具设计评审修复：缓存窗口 / 依赖自愈 / 中断接入
 
 ### 变更
