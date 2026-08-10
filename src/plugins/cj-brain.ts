@@ -34,9 +34,9 @@ type SessionState = {
   agent: string
   isSubagent: boolean
   parentID?: string
-  turn: number // messages.transform 触发次数 = LLM 轮次
-  toolsUsed: string[] // 本会话已用工具名（按调用序）
-  lastToolAt: number // 最后一次工具调用时的 turn（阶段启发式用）
+  turn: number // 一次输入(runLoop)内的轮次；新输入(chat.message)或 compacting 时重置
+  toolsUsed: string[] // 一次输入(runLoop)内已用工具名（按调用序）；同上重置
+  lastToolAt: number // 最后一次工具调用时的 turn（阶段启发式用）；同上重置
 }
 
 // 内存态：sessionID → state。进程重启清空（瞬态可接受；要跨会话记忆另做持久化）
@@ -99,12 +99,19 @@ const CjBrainPlugin: Plugin = async (_input, options) => {
   const cfg = parseConfig(options)
 
   return {
-    // ── 同步兜底：用户发消息时建/刷 agent 映射（event 的 session.created 更早更全，这里是双保险）──
+    // ── 用户发消息（新一次 prompt/runLoop 开始）：建/刷 agent 映射 + 重置 runLoop 内累加状态 ──
+    // turn/toolsUsed 只在一次输入触发的多轮循环内累加（让模型感知"本任务第N轮"），
+    // 下次输入重来（"顺便看看 tsconfig"是新任务，不该背着上个任务的轮次/工具历史）。
+    // session.compacting 也会重置（那是上下文被总结的特殊情况）。
     "chat.message": async (input, _output) => {
       const sid = input.sessionID
       const agent = input.agent ?? "build"
-      ensureState(sid, agent).agent = agent
-      dbg(cfg, `chat.message sid=${sid} agent=${agent}`)
+      const s = ensureState(sid, agent)
+      s.agent = agent
+      s.turn = 0
+      s.toolsUsed = []
+      s.lastToolAt = 0
+      dbg(cfg, `chat.message sid=${sid} agent=${agent} state reset (new prompt)`)
     },
 
     // ── 生命周期观察：session.created 建映射(含 parentID) / session.deleted 清理 ──
