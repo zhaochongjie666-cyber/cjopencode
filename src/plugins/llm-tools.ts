@@ -525,6 +525,78 @@ export const LlmToolsPlugin: Plugin = async (input) => {
           return [`# 交叉审计报告`, ``, auditSection, ``, `## 综合与交叉质疑`, summary].join("\n")
         },
       }),
+
+      llm_switch_role: tool({
+        description:
+          "LLM 角色定位工具（todo 状态机推进时调用）：每次从一条 todo 切到下一条时调用，" +
+          "无论新 todo 抽象还是具体，都先停下问自己——「要做好这件事，我该扮演什么角色？该做哪些细节动作？」。" +
+          "工具基于新 todo 内容 + 可选的全局 todo 概览 + 原始任务，推理出" +
+          "「本步扮演什么角色、做事时的核心目标、要做的细节操作、与上下游如何衔接」。" +
+          "不走 Session——直接拉主会话 Message List 作为上下文，用主 Agent 当前的 provider 推理" +
+          "（vendor 自 opencode LLM Engine，wire 与主会话请求同构，前缀稳定命中 provider implicit prompt cache）。" +
+          "与 llm_reflect_midway（事后反思）/ llm_assess_progress（验收评估）的区别：" +
+          "本工具聚焦「切入新 todo 前的角色定位 + 细节动作预排」，让 agent 带着明确身份和具体操作清单开工，" +
+          "避免一头扎进去胡乱试。",
+        args: {
+          current_todo: tool.schema
+            .string()
+            .describe("新切入的 todo 内容（哪怕只是几个词也行；本步要做什么）"),
+          previous_todo: tool.schema
+            .string()
+            .optional()
+            .describe("刚完成的 todo（用于判断衔接/接口契约/产物依赖）"),
+          todos_overview: tool.schema
+            .string()
+            .optional()
+            .describe(
+              "整体 todo 列表概览（让推理看到上下游位置；推荐用 todowrite 当前快照的简短文本）",
+            ),
+          task_overall: tool.schema
+            .string()
+            .optional()
+            .describe("原始任务/总体目标（让推理理解本 todo 在大目标里的位置）"),
+          instruction: tool.schema
+            .string()
+            .optional()
+            .describe(
+              '角色指令（默认"如果要把这件事做好，我该扮演什么角色？要做哪些细节操作？"）。可覆盖为特定视角。',
+            ),
+        },
+        async execute(args, ctx) {
+          const inst =
+            args.instruction && args.instruction.trim()
+              ? args.instruction.trim()
+              : "如果要把这件事做好，我该扮演什么角色？要做哪些细节操作？"
+          const taskBody =
+            `## 新切入的 todo\n${args.current_todo}` +
+            (args.previous_todo && args.previous_todo.trim()
+              ? `\n\n## 上一条 todo（已完成）\n${args.previous_todo}`
+              : "") +
+            (args.todos_overview && args.todos_overview.trim()
+              ? `\n\n## 整体 todo 概览\n${args.todos_overview}`
+              : "") +
+            (args.task_overall && args.task_overall.trim()
+              ? `\n\n## 原始任务 / 总体目标\n${args.task_overall}`
+              : "")
+          const outputFormat =
+            "\n\n## 思考锚点（务必先答这两句）\n" +
+            "- 「如果要把这件事做好，我应该扮演 ___ 这样的角色」\n" +
+            "- 「要做好这个角色，我具体该做哪些细节操作（颗粒度要细到单次工具调用 / 单个产物）」\n\n" +
+            "## 输出要求（必须按以下中文结构输出）\n" +
+            "1. **当前角色**：本步该扮演的具体角色（如：代码考古者 / API 设计者 / 接口契约制定者 / 实施编码者 / 单元测试者 / 端到端验证者 / 文档撰写者 / 风险审计者 / 收尾汇报者 等），并写一句依据（为什么是它不是别的）。\n" +
+            "2. **核心目标**：本 todo 要交付什么（一句话 + 可验证判据）。\n" +
+            "3. **细节操作清单**：按顺序的颗粒度操作步骤，每步要落到「读哪个文件哪段 / 调哪个工具 / 产出什么具体产物」。粗到「先 X 再 Y」、细到「先 read 那个文件第 N 行确认 X，再 grep Y，再 edit 改 Z」皆可，关键是不能只列「调研/实现/测试」这种大词。\n" +
+            "4. **上下游衔接**：与上一条 todo 的接口（要读它的什么产物）/ 与后续 todo 的契约（要留下什么产物让下游接力）。\n" +
+            "5. **角色易犯的错**：该角色/该类工作 2-4 条常见误区或易漏点（基于 todo 内容触发）。\n" +
+            "6. **完成判据**：怎么算 done（具体可观测的事实/产物/检查），不要用「完成/做好」之类模糊词。"
+          const task = `${taskBody}${outputFormat}`
+          return await infer(
+            ctx,
+            "你是 llm_* 工具的角色定位引擎。请先把新 todo 当成「如果要做好，我该扮演什么角色」来想，再给出颗粒度足够细的操作清单。输出中文。",
+            task,
+          )
+        },
+      }),
     } as unknown as Record<string, ToolDefinition>,
   }
 }
