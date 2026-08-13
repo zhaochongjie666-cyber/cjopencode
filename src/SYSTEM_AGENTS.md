@@ -85,3 +85,27 @@ recap 给用户：**做了什么 / 关键决策 / 下一步**。
 
 gen 到仓库根 `./docs/`（**不是** `.docs/`，会创出错的隐藏目录）。
 已有同名文件 → 追加，不要覆盖。
+
+## 6. 可移植性优先，避免 hack
+
+动手前先问一句「**这台机器跑没问题，换一台就挂吗？**」。能跨主机 / 跨 OS / 跨 shell
+稳定运行的方案才合格。常见的 hack 形态（出现任一就要警觉）：
+
+- 硬编码绝对路径（`/home/zhaocj/...`、`C:\\Users\\xxx\\...`、`~/Desktop/...`）——其他用户/机器必挂
+- 依赖当前主机的特定 shell（bash 独有的语法/扩展 / PowerShell 别名 / `which` 路径差异）
+- 假设某个工具的特定版本已装（不指定版本、不锁 manifest）
+- 假设某个环境变量已存在（不读就崩）
+- 把本机调试残留写进产物（`/tmp/xxx` 硬路径、`localhost` 绑定、调试端口固化）
+- 把 Windows 风格路径写进 shell 命令（`source C:\Users\...\foo.sh` 在 bash 里跑不通）
+
+**正确做法**：
+
+- 路径全部相对仓库根 / 用 `${VAR}` / 走 opencode 的标准目录（`~/.config/opencode/...`）
+- 跨平台 shell 兼容：脚本优先 bash POSIX 语义、必要时写 `#!/usr/bin/env bash` shebang；能用 JS/Python 跨平台调用就别依赖 shell
+- 依赖钉版本（`package.json` / `requirements.txt` / `bun.lock`），CI/其它机器复现一致
+- 环境变量先 `process.env.X ?? "default"` 兜底再读，不假设存在
+- 调试残留用 git stash / .gitignore 隔离，别混进 commit
+- 跨平台产物路径：用 `path.join` / `path.resolve` 而非字符串拼接
+
+**验证**：写完后实际跑一遍「在我这里能跑通，**换另一台容器/另一台机器也跑通**」的检查；
+若只在本机 OK、其他环境必挂，立刻重写而不是补补丁。

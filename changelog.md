@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-08-12 12:30:00 - SYSTEM_AGENTS.md：新增 §6 可移植性优先、避免 hack
+
+### 变更
+- `src/SYSTEM_AGENTS.md`：新增 §6「可移植性优先，避免 hack」
+- 列出常见 hack 形态（硬编码绝对路径 / shell 假设 / 版本假设 / env 假设 / 调试残留 / Windows 路径混进 bash）
+- 列出正确做法（相对路径 + `${VAR}` / POSIX bash / 钉版本 / env 兜底 / gitignore 隔离 / `path.join`）
+
+### 关键决策
+- **为什么单独一节而不是塞进 §1 design**：可移植性是横向约束，影响每个动作（路径、shell、依赖、env），与「先 design 再 TDD」的方法论并列而非从属
+- **为什么列举具体 hack 形态**：抽象警告无操作性，列形态 + 配套正确做法，agent 才能在看到具体模式时警觉
+
+### 验证 / 反 sham
+- §6 在文档末尾，紧跟 §5 「新知识归档」——不打断 design/TDD 工作流主轴
+- 章节编号连贯（1→2→3→4→5→6），§4 内模板 `## YYYY-MM-DD...` 非编号节
+- 6 条常见 hack 形态与 6 条正确做法一一对应（"出现 X 就要警觉 → 改用 Y"）
+
+### 遗留事项
+- 仓库内现存脚本（`install.sh` / 各 agent 的 bash 调用）是否真的跨平台 —— 本次仅加规则，未做存量审计
+- Windows 路径兼容性：`install.sh` 在 Windows Git Bash 下能跑但缺 shebang + 部分 POSIX 行为假设，待实际验证
+
 ## 2026-08-12 12:00:00 - SYSTEM_AGENTS.md：纳入 llm_* 工具工作流（全局默认）
 
 ### 变更
