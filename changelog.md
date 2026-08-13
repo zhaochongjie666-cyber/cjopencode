@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-12 12:00:00 - SYSTEM_AGENTS.md：纳入 llm_* 工具工作流（全局默认）
+
+### 变更
+- `src/SYSTEM_AGENTS.md`：在 §1（design + TDD）之后插入新 §2「复杂任务走 llm_* 工作流」，原 §2/§3/§4 顺延为 §3/§4/§5
+- 新 §2 列出 6 个 `llm_*` 工具（`understand_task` / `reflect_midway` / `assess_progress` / `switch_role` / `cross_audit` / `reflect`）的触发时机、关键参数、产出结构表格
+- 显式声明「全局默认」适用所有 agent；`cj` agent 走自身更严的 cj.md 节奏
+
+### 关键决策
+- **为什么不只让 `cj` 用**：`llm_*` 工具是通用工作流引擎，挂 SYSTEM_AGENTS.md 才能让所有 agent 默认享有「理解→反思→验收」节奏，`cj.md` 作为更严的实现层仍可叠加
+- **为什么保留原 §2/§3/§4 不合并**：四节各自独立（语言 / changelog / docs），合并会破坏现有文档链接与心智模型
+- **为什么英语首行 `first:` 不本地化**：opencode bootstrap 按 token 匹配，跨 locale 稳定；本地化反而破坏识别（参见 `src/SYSTEM_AGENTS.md:2`）
+
+### 验证 / 反 sham
+- diff 全文：`src/SYSTEM_AGENTS.md` 章节编号连贯（1 → 2 新增 → 3/4/5 顺延），无跳号
+- 重读 `src/agents/cj.md:36`「任务极小 → 全程不调 llm_*」与新 §2「平凡任务例外」语义一致，不冲突
+- 6 个工具名逐一对照 `src/plugins/llm-tools.ts`（`understand_task` / `reflect_midway` / `assess_progress` / `switch_role` / `cross_audit` / `reflect`），无遗漏无捏造
+
+### 遗留事项
+- 各 agent（`xdd-*`、`nf-*`、`deployer` 等）是否要在自家 frontmatter / 正文里显式引用 llm_* ——本次未做，下次按需补
+- `llm_switch_role` 与现有「切 todo 思考下一条」心智是否完全对齐 ——等实际使用反馈
+
 ## 2026-08-10 - cj-brain v2：注入点迁移（保证缓存命中）+ 融入 opencode 体系
 
 ### 变更

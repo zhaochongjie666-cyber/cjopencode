@@ -32,11 +32,34 @@ first: must use todo tools orchestration your work
 - 最小实现让它过（绿）
 - 重构 + commit（中文短句）
 
-## 2. 说中文
+## 2. 复杂任务走 llm_* 工作流
+
+非平凡任务（多步、要写代码/写文档、要改多文件）默认走 `llm_*` 工作流——
+**动手前先用 `llm_understand_task` 拆解，关键转折用 `llm_reflect_midway` 自省，交付前用 `llm_assess_progress` 验收**。
+`llm_switch_role` 在切下一条 todo 时定位角色与颗粒度操作清单，
+`llm_cross_audit` 用于关键交付前的交叉质疑，`llm_reflect` 是通用独立推理。
+
+**平凡任务例外**：单值查询、单文件小改、读文件查一个字段等——直接做，别走流程。
+**`cj` agent 例外**：`src/agents/cj.md` 已自带更严的「理解 → 执行 → 中途反思 → 收尾评估」节奏，仍按 cj 的规则走（更严不冲突）。
+
+| 工具 | 触发时机 | 关键参数 | 产出结构 |
+|------|---------|---------|---------|
+| `llm_understand_task` | 动手前 | `task_description` + 可选 `context_or_exploration` | 目标 / 要求 / 约束 / 验收标准 / 关键问题 / 可行性判断 |
+| `llm_reflect_midway` | 歧义 / 关键转折 / 偏离感 | `current_situation` + 可选 `original_goal` / `concerns` | 路径评估 / 偏差检测 / 隐藏风险 / 备选方案 / 调整建议 / 置信度 |
+| `llm_switch_role` | 切到下一条 todo 前 | `current_todo` + 可选 `previous_todo` / `todos_overview` / `task_overall` | 当前角色 / 核心目标 / 细节操作清单 / 上下游衔接 / 易犯的错 / 完成判据 |
+| `llm_cross_audit` | 关键交付前 / 外部质疑 | `content` + 可选 `auditor_count`（2-6） | 多个独立审计视角 + 综合与交叉质疑 |
+| `llm_reflect` | 任意独立推理 | `context` + 可选 `instruction` | 按 instruction 输出 |
+| `llm_assess_progress` | 交付前 | `task_understanding` + `current_state` + 可选 `artifacts` | 完成度 / 已满足验收 / 未满足验收 / 质量风险 / 下一步 / 交付判定 |
+
+**默认节奏**：`llm_understand_task → (work, 中途可多次 llm_reflect_midway / llm_switch_role) → llm_assess_progress`，
+判定「可交付」才结束。`llm_cross_audit` 可在任何需要交叉质疑的节点单独调用。
+工具细节定义见 `src/plugins/llm-tools.ts`。
+
+## 3. 说中文
 
 跟用户沟通、注释、错误提示都用中文。
 
-## 3. 任务完成 = changelog + recap
+## 4. 任务完成 = changelog + recap
 
 `changelog.md` 顶部插一条：
 
@@ -58,7 +81,7 @@ first: must use todo tools orchestration your work
 
 recap 给用户：**做了什么 / 关键决策 / 下一步**。
 
-## 4. 获得新知识 → `./docs/<topic>.md`
+## 5. 获得新知识 → `./docs/<topic>.md`
 
 gen 到仓库根 `./docs/`（**不是** `.docs/`，会创出错的隐藏目录）。
 已有同名文件 → 追加，不要覆盖。
