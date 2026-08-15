@@ -349,6 +349,15 @@ DDD 的起点 —— 开发和业务用同一套词，代码类名 = 业务术�
 
 模板见 `templates/intent.md` + `templates/design.md`。
 
+## 行文之法（.xdd 产物叙述一律文言式 ＋ 符号）
+
+凡 `.xdd/` 内产物（intent.md / design.md / glossary.md / personas/ / notes/）：叙述用**文言短语**，逻辑用**符号**，弃白话长句。义不损，字求简（见 SYSTEM_AGENTS.md §7）。
+
+- 符号：流转 `→`；推导 `⇒`；并列 `＋`；定义 `＝`；章节引 `§`；比较 `≤ ≥ ≠`
+- 例：白话「如果同一个任务连续三次失败，就回退到 spec 层重新定义规则」⇒ 文言「task 三败 ⇒ 回 spec 重定 RXX」
+- **例外（机器格式勿文言）**：Gherkin、mermaid、代码/命令/路径、表格列名、frontmatter
+- 自检：□ 叙述皆文言式 ＋ 符号，无白话长句？□ 例外格式未被文言污染？
+
 ## 自检
 
 ```

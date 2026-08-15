@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-15 11:58:00 - .xdd 行文之法：文言式 ＋ 符号（SYSTEM_AGENTS §7 ＋ 8 skill ＋ WORKFLOW）
+
+### 变更
+- `src/SYSTEM_AGENTS.md`：新增 §7「.xdd 行文之法：文言式 ＋ 符号」（符号表 ＋ 例 ＋ 例外 ＋ 范围限定）
+- 8 个写 `.xdd` 的 skill 各注入「行文之法」节（brainstorm / spec / architecture / wire / resilience / plan / execute / verify），各带领域化示例 ＋ 自检两条
+- `.xdd/WORKFLOW.md` ＋ `src/skills/init/templates/WORKFLOW.md`：追加 §10「行文之法」（init 模板同步，新项目自动带上）
+
+### 关键决策
+- 符号集：`→` 流转 / `⇒` 推导 / `＋` 并列 / `＝` 定义 / `§` 引章节 / `≤≥≠` 比较——全部一次定义于 §7，各 skill 只引用不重复展开
+- 例外清单（Gherkin 步骤、mermaid、代码/命令、表列名、frontmatter、`@implements`/`@covers`）：机器可解析格式 ＋ 用户直接阅读的验收正文不动文言，防语法坏 ＋ 可读性损
+- 范围限定：仅 `.xdd` 产物；与用户沟通、代码注释仍按 §3 白话中文
+- spec 的 Gherkin 步骤、wire 的页面可见文案单独点名豁免（两者是「给人读」的正文，非「给模型读」的锚）
+
+### 验证 / 反 sham
+- `grep -c '行文之法'` 覆盖 8 skill ＋ 2 WORKFLOW ＋ SYSTEM_AGENTS ＝ 11 处，无遗漏
+- 各 skill 的节内示例本身即用文言式写成（以文证法）
+- init 模板与仓库现行 `.xdd/WORKFLOW.md` §10 内容一致（模板自包含，不依赖 SYSTEM_AGENTS.md 存在）
+
+### 遗留事项
+- 存量 `.xdd/design/` 文档未回写为文言式（规则只管新写；要不要存量迁移待定）
+- `src/agents/xdd-*.md`（agent 封装）未动——它们指路到 skill，skill 已带规则；若 agent 正文也大量自述产物格式，可后续补
+
 ## 2026-08-12 12:30:00 - SYSTEM_AGENTS.md：新增 §6 可移植性优先、避免 hack
 
 ### 变更

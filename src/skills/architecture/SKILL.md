@@ -575,6 +575,15 @@ Feature→架构映射链 + 质量属性场景 + 安全设计(SDD) + 性能设�
 
 **全局独立产出**（非 colocation，跨业务线）：`aggregate-landscape.md`（聚合全景）+ `event-contract.md`（事件契约）+ `module-landscape.md`（模块全景：base 基础建设 + 业务上下文 + 依赖矩阵，见 §13）。
 
+## 行文之法（.xdd 产物叙述一律文言式 ＋ 符号）
+
+凡 `.xdd/` 内产物（architecture.md / flow.mermaid 注释 / traceability-matrix.md / ADR）：叙述用**文言短语**，逻辑用**符号**，弃白话长句。义不损，字求简（见 SYSTEM_AGENTS.md §7）。
+
+- 符号：流转 `→`（如 `Feature → BR-XX → 模块`）；推导 `⇒`；并列 `＋`；定义 `＝`；章节引 `§`；比较 `≤ ≥ ≠`
+- 例：白话「通知失败不应该导致主业务回滚」⇒ 文言「通知败 ⇏ 主业务回滚」
+- **例外（机器格式勿文言）**：Gherkin、mermaid 语法、代码/命令/路径、表格列名、frontmatter
+- 自检：□ 叙述皆文言式 ＋ 符号，无白话长句？□ 例外格式未被文言污染？
+
 ## 自检
 
 ```

@@ -170,6 +170,15 @@ Scenario: 网络分区下提交降级
 └── recovery-runbook.md      # 恢复剧本 (运维值班，具体命令)
 ```
 
+## 行文之法（.xdd 产物叙述一律文言式 ＋ 符号）
+
+凡 `.xdd/` 内产物（failure-modes / failsafe-design / chaos-scenarios / recovery-runbook）：叙述用**文言短语**，逻辑用**符号**，弃白话长句。义不损，字求简（见 SYSTEM_AGENTS.md §7）。
+
+- 符号：流转 `→`（如 `症状 → 立即动作 → 诊断树 → 恢复`）；推导 `⇒`；并列 `＋`；定义 `＝`；章节引 `§`；比较 `≤ ≥ ≠`
+- 例：白话「Redis 不可用时降级为直接写数据库，并且返回降级标记」⇒ 文言「Redis 不可用 ⇒ 降级直写 DB ＋ 标记 degraded」
+- **例外（机器格式勿文言）**：Gherkin（@chaos 步骤为验收正文，仍白话）、mermaid、注入命令/代码/路径、表格列名、frontmatter
+- 自检：□ 叙述皆文言式 ＋ 符号，无白话长句？□ 例外格式未被文言污染？
+
 ## 自检
 
 ```
